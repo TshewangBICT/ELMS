@@ -223,7 +223,6 @@ const EmployeeManager = {
                     <input id="newEmail" placeholder="Email" type="email" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                     <input id="newPass" placeholder="Password" type="password" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                     <input id="newPhone" placeholder="Phone" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
-                    <input type="date" id="newDob" placeholder="Date of Birth" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                     <select id="newDept" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <option value="">Select Department</option>
                         ${deptOptions}
@@ -247,7 +246,6 @@ const EmployeeManager = {
             email: document.getElementById('newEmail').value.trim(),
             passwordHash: document.getElementById('newPass').value,
             phone: document.getElementById('newPhone').value.trim(),
-            dob: document.getElementById('newDob').value,
             position: document.getElementById('newPos').value.trim(),
             department: document.getElementById('newDept').value,
             role: 'user'
@@ -306,7 +304,6 @@ const EmployeeManager = {
                         <input id="editLn" value="${emp.lastName || ''}" placeholder="Last name" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <input id="editEmail" value="${emp.email || ''}" placeholder="Email" type="email" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <input id="editPhone" value="${emp.phone || ''}" placeholder="Phone" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
-                        <input type="date" id="editDob" value="${emp.dob || ''}" placeholder="Date of Birth" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <select id="editDept" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                             ${deptOptions}
                         </select>
@@ -344,7 +341,6 @@ const EmployeeManager = {
             lastName: document.getElementById('editLn').value.trim(),
             email: document.getElementById('editEmail').value.trim(),
             phone: document.getElementById('editPhone').value.trim(),
-            dob: document.getElementById('editDob').value,
             position: document.getElementById('editPos').value.trim(),
             department: document.getElementById('editDept').value,
             role: isAdmin ? 'admin' : 'user'
@@ -367,7 +363,6 @@ const EmployeeManager = {
         }
     },
 
-    // New method to toggle admin role directly from table
     async toggleRole(employeeId, currentRole) {
         const newRole = currentRole === 'admin' ? 'user' : 'admin';
         const action = newRole === 'admin' ? 'make admin' : 'remove admin privileges';
