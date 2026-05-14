@@ -645,7 +645,9 @@ async approveLeave(leaveId, status) {
     }
     
     try {
-        const result = await API.approveLeave(leaveId, status);
+        // Convert 'rejected' to 'cancelled' for backend
+        const backendStatus = status === 'rejected' ? 'cancelled' : status;
+        const result = await API.approveLeave(leaveId, backendStatus);
         
         if (result.success) {
             Utils.showToast(`Leave request ${status === 'approved' ? 'approved' : 'rejected'} successfully`, 'ok');
