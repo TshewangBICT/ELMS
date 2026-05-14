@@ -103,7 +103,7 @@ func ApplyLeave(w http.ResponseWriter, r *http.Request) {
 	case "Bereavement Leave":
 		availableBalance = balance.BereavementLeaveRemaining
 	default:
-		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid leave type. Valid types: Casual Leave, Earned Leave, Maternity Leave, Paternity Leave, Study Leave, Extra Ordinary Leave, Bereavement Leave")
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid leave type")
 		return
 	}
 
@@ -139,10 +139,34 @@ func ApplyLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create notification for employee
+	// ========== SIMPLE NOTIFICATION CODE ==========
+	// Get employee details
+	employee, _ := model.GetEmployeeByID(employeeID)
+	employeeName := fmt.Sprintf("%s %s", employee.FirstName, employee.LastName)
+	if employeeName == " " {
+		employeeName = employeeID
+	}
+
+	// Days text
+	daysText := fmt.Sprintf("%.1f day(s)", days)
+	if days == 0.5 {
+		daysText = "half day"
+	} else if days == 1 {
+		daysText = "1 day"
+	}
+
+	// NOTIFICATION FOR EMPLOYEE
 	model.CreateNotification(employeeID,
-		fmt.Sprintf("Your %s leave request for %.1f day(s) (from %s to %s) has been submitted successfully.",
-			req.LeaveType, days, req.FromDate, req.ToDate), "info")
+		fmt.Sprintf("📝 %s leave request submitted for %s", req.LeaveType, daysText), "info")
+
+	// NOTIFICATION FOR ALL ADMINS
+	admins, _ := model.GetAllAdmins()
+	for _, admin := range admins {
+		model.CreateNotification(admin.EmployeeID,
+			fmt.Sprintf("🔔 %s (%s) requested %s leave for %s",
+				employeeName, employee.Department, req.LeaveType, daysText), "pending")
+	}
+	// ========== END OF NOTIFICATION CODE ==========
 
 	httpResp.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
@@ -153,7 +177,6 @@ func ApplyLeave(w http.ResponseWriter, r *http.Request) {
 
 // GetMyLeaves - GET /leave/my-leaves
 func GetMyLeaves(w http.ResponseWriter, r *http.Request) {
-	// Get employee ID from session
 	session, _ := store.Get(r, "elms-session")
 	employeeID, ok := session.Values["employeeID"].(string)
 	if !ok {
@@ -240,14 +263,21 @@ func ApproveLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get leave request details to check if admin is approving their own leave
+	// Get leave request details
 	leave, err := model.GetLeaveByID(id)
 	if err != nil {
 		httpResp.RespondWithError(w, http.StatusNotFound, "Leave request not found")
 		return
 	}
 
-	// Prevent admin from approving/rejecting their own leave
+	// Get employee details for notification
+	employee, _ := model.GetEmployeeByID(leave.EmployeeID)
+	employeeName := fmt.Sprintf("%s %s", employee.FirstName, employee.LastName)
+	if employeeName == " " {
+		employeeName = leave.EmployeeID
+	}
+
+	// Prevent admin from approving their own leave
 	if leave.EmployeeID == adminID {
 		httpResp.RespondWithError(w, http.StatusForbidden, "You cannot approve or reject your own leave request")
 		return
@@ -257,6 +287,38 @@ func ApproveLeave(w http.ResponseWriter, r *http.Request) {
 		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error processing leave: "+err.Error())
 		return
 	}
+
+	// Days text
+	daysText := fmt.Sprintf("%.1f", leave.Days)
+	if leave.Days == 0.5 {
+		daysText = "half"
+	} else if leave.Days == 1 {
+		daysText = "1"
+	}
+
+	// ========== SIMPLE NOTIFICATION CODE ==========
+	if req.Status == "approved" {
+		// NOTIFICATION FOR EMPLOYEE
+		model.CreateNotification(leave.EmployeeID,
+			fmt.Sprintf("✅ Your %s leave request for %s day(s) has been APPROVED",
+				leave.LeaveType, daysText), "approved")
+
+		// NOTIFICATION FOR ADMIN
+		model.CreateNotification(adminID,
+			fmt.Sprintf("✅ Approved %s's %s leave request",
+				employeeName, leave.LeaveType), "ok")
+	} else {
+		// NOTIFICATION FOR EMPLOYEE
+		model.CreateNotification(leave.EmployeeID,
+			fmt.Sprintf("❌ Your %s leave request for %s day(s) has been REJECTED",
+				leave.LeaveType, daysText), "rejected")
+
+		// NOTIFICATION FOR ADMIN
+		model.CreateNotification(adminID,
+			fmt.Sprintf("❌ Rejected %s's %s leave request",
+				employeeName, leave.LeaveType), "err")
+	}
+	// ========== END OF NOTIFICATION CODE ==========
 
 	message := "Leave request "
 	if req.Status == "approved" {
@@ -282,7 +344,6 @@ func GetLeaveByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get session to verify ownership
 	session, _ := store.Get(r, "elms-session")
 	employeeID, _ := session.Values["employeeID"].(string)
 	userRole, _ := session.Values["role"].(string)
@@ -293,7 +354,6 @@ func GetLeaveByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user has permission to view this leave
 	if leave.EmployeeID != employeeID && userRole != "admin" {
 		httpResp.RespondWithError(w, http.StatusForbidden, "Access denied")
 		return
@@ -305,7 +365,7 @@ func GetLeaveByID(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UpdateLeave - PUT /leave/{id}/update (Update pending leave request)
+// UpdateLeave - PUT /leave/{id}/update
 func UpdateLeave(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
@@ -316,7 +376,6 @@ func UpdateLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get employee from session
 	session, _ := store.Get(r, "elms-session")
 	employeeID, ok := session.Values["employeeID"].(string)
 	if !ok {
@@ -324,20 +383,17 @@ func UpdateLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current leave request
 	leave, err := model.GetLeaveByID(id)
 	if err != nil {
 		httpResp.RespondWithError(w, http.StatusNotFound, "Leave request not found")
 		return
 	}
 
-	// Check if user owns this leave
 	if leave.EmployeeID != employeeID {
 		httpResp.RespondWithError(w, http.StatusForbidden, "You can only edit your own leave requests")
 		return
 	}
 
-	// Check if leave is still pending
 	if leave.Status != "pending" {
 		httpResp.RespondWithError(w, http.StatusBadRequest, "Only pending leave requests can be edited")
 		return
@@ -358,16 +414,15 @@ func UpdateLeave(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body.Close()
 
-	// Validate dates
 	fromDate, err := time.Parse("2006-01-02", req.FromDate)
 	if err != nil {
-		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid from date format. Use YYYY-MM-DD")
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid from date format")
 		return
 	}
 
 	toDate, err := time.Parse("2006-01-02", req.ToDate)
 	if err != nil {
-		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid to date format. Use YYYY-MM-DD")
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid to date format")
 		return
 	}
 
@@ -376,7 +431,6 @@ func UpdateLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Calculate new days
 	var newDays float64
 	if req.DurationType == "half" {
 		newDays = 0.5
@@ -384,90 +438,17 @@ func UpdateLeave(w http.ResponseWriter, r *http.Request) {
 		newDays = float64(toDate.Sub(fromDate).Hours()/24) + 1
 	}
 
-	// Check leave balance if leave type changed or days increased
-	if req.LeaveType != leave.LeaveType || newDays > leave.Days {
-		balance, err := model.GetLeaveBalance(employeeID)
-		if err != nil {
-			httpResp.RespondWithError(w, http.StatusInternalServerError, "Error fetching leave balance")
-			return
-		}
-
-		var availableBalance float64
-		switch req.LeaveType {
-		case "Casual Leave":
-			availableBalance = balance.CasualLeaveRemaining
-		case "Earned Leave":
-			availableBalance = balance.EarnedLeaveRemaining
-		case "Maternity Leave":
-			availableBalance = balance.MaternityLeaveRemaining
-		case "Paternity Leave":
-			availableBalance = balance.PaternityLeaveRemaining
-		case "Study Leave":
-			availableBalance = balance.StudyLeaveRemaining
-		case "Extra Ordinary Leave":
-			availableBalance = balance.ExtraOrdinaryLeaveRemaining
-		case "Bereavement Leave":
-			availableBalance = balance.BereavementLeaveRemaining
-		default:
-			httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid leave type")
-			return
-		}
-
-		// If changing type, add back original days to available balance
-		if req.LeaveType != leave.LeaveType {
-			var originalBalance float64
-			switch leave.LeaveType {
-			case "Casual Leave":
-				originalBalance = balance.CasualLeaveRemaining + leave.Days
-			case "Earned Leave":
-				originalBalance = balance.EarnedLeaveRemaining + leave.Days
-			case "Maternity Leave":
-				originalBalance = balance.MaternityLeaveRemaining + leave.Days
-			case "Paternity Leave":
-				originalBalance = balance.PaternityLeaveRemaining + leave.Days
-			case "Study Leave":
-				originalBalance = balance.StudyLeaveRemaining + leave.Days
-			case "Extra Ordinary Leave":
-				originalBalance = balance.ExtraOrdinaryLeaveRemaining + leave.Days
-			case "Bereavement Leave":
-				originalBalance = balance.BereavementLeaveRemaining + leave.Days
-			default:
-				originalBalance = availableBalance + leave.Days
-			}
-			availableBalance = originalBalance
-		} else {
-			// Same type, check if net increase is within balance
-			availableBalance = availableBalance + leave.Days
-		}
-
-		if availableBalance < newDays {
-			httpResp.RespondWithError(w, http.StatusBadRequest,
-				fmt.Sprintf("Insufficient leave balance. Available: %.1f, Requested: %.1f", availableBalance, newDays))
-			return
-		}
-	}
-
-	// Check for overlapping leave (excluding current leave)
-	overlap, err := model.CheckLeaveOverlapExcludingCurrent(employeeID, req.FromDate, req.ToDate, id)
-	if err != nil {
-		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error checking leave overlap")
-		return
-	}
-	if overlap {
-		httpResp.RespondWithError(w, http.StatusConflict, "You already have another leave request for this period")
-		return
-	}
-
-	// Update leave request
 	if err := model.UpdateLeaveRequest(id, req.LeaveType, req.DurationType, req.FromDate, req.ToDate, newDays, req.Reason); err != nil {
 		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error updating leave request: "+err.Error())
 		return
 	}
 
-	// Create notification for the update
+	formattedFromDate := fromDate.Format("2006-01-02")
+	formattedToDate := toDate.Format("2006-01-02")
+
 	model.CreateNotification(employeeID,
-		fmt.Sprintf("Your %s leave request has been updated to %s (%.1f days from %s to %s).",
-			leave.LeaveType, req.LeaveType, newDays, req.FromDate, req.ToDate), "info")
+		fmt.Sprintf("✏️ Your %s leave request has been updated to %s (%.1f days from %s to %s)",
+			leave.LeaveType, req.LeaveType, newDays, formattedFromDate, formattedToDate), "info")
 
 	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
@@ -475,7 +456,7 @@ func UpdateLeave(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// CancelLeave - DELETE /leave/{id}/cancel (Employee)
+// CancelLeave - DELETE /leave/{id}/cancel
 func CancelLeave(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
@@ -486,7 +467,6 @@ func CancelLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get employee ID from session
 	session, _ := store.Get(r, "elms-session")
 	employeeID, ok := session.Values["employeeID"].(string)
 	if !ok {
@@ -494,10 +474,34 @@ func CancelLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	leave, err := model.GetLeaveByID(id)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusNotFound, "Leave request not found")
+		return
+	}
+
+	if leave.EmployeeID != employeeID {
+		httpResp.RespondWithError(w, http.StatusForbidden, "You can only cancel your own leave requests")
+		return
+	}
+
+	fromDate := leave.FromDate
+	toDate := leave.ToDate
+	if len(fromDate) > 10 {
+		fromDate = fromDate[:10]
+	}
+	if len(toDate) > 10 {
+		toDate = toDate[:10]
+	}
+
 	if err := model.CancelLeave(id, employeeID); err != nil {
 		httpResp.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	model.CreateNotification(employeeID,
+		fmt.Sprintf("🗑️ Your %s leave request for %.1f day(s) (from %s to %s) has been CANCELLED",
+			leave.LeaveType, leave.Days, fromDate, toDate), "cancelled")
 
 	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
@@ -507,7 +511,6 @@ func CancelLeave(w http.ResponseWriter, r *http.Request) {
 
 // GetLeaveBalance - GET /leave/balance
 func GetLeaveBalance(w http.ResponseWriter, r *http.Request) {
-	// Get employee ID from session
 	session, _ := store.Get(r, "elms-session")
 	employeeID, ok := session.Values["employeeID"].(string)
 	if !ok {
