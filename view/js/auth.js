@@ -87,7 +87,21 @@ const LoginPage = {
                                     </div>
                                     <div>
                                         <label class="text-xs font-semibold text-gray-600 block mb-1">Password (min 4)</label>
-                                        <input id="regPass" type="password" class="w-full px-3 py-2 border rounded-xl">
+                                        <div class="relative">
+                                            <input id="regPass" type="password" class="w-full px-3 py-2 border rounded-xl">
+                                            <button type="button" onclick="Utils.togglePassword('regPass', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                                <i class="far fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold text-gray-600 block mb-1">Confirm Password</label>
+                                        <div class="relative">
+                                            <input id="regConfirmPass" type="password" class="w-full px-3 py-2 border rounded-xl">
+                                            <button type="button" onclick="Utils.togglePassword('regConfirmPass', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                                <i class="far fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
@@ -219,59 +233,59 @@ const LoginPage = {
     },
 
     async handleLogin() {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPass').value;
-    
-    if (!email || !password) {
-        Utils.showToast('Please enter email and password', 'warn');
-        return;
-    }
-    
-    try {
-        const response = await fetch('http://localhost:8080/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ email, password })
-        });
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPass').value;
         
-        const result = await response.json();
-        
-        if (result.success && result.data) {
-            // Fetch full employee data including profile picture
-            const employeeId = result.data.employeeId;
-            let profilePic = null;
-            
-            try {
-                const empResponse = await fetch(`http://localhost:8080/employee/${employeeId}`, {
-                    credentials: 'include'
-                });
-                const empResult = await empResponse.json();
-                console.log('Full employee data after login:', empResult);
-                if (empResult.success && empResult.data) {
-                    profilePic = empResult.data.profilePic || empResult.data.profile_pic;
-                }
-            } catch (err) {
-                console.error('Error fetching profile pic:', err);
-            }
-            
-            // Set the user with profile picture
-            App.currentUser = {
-                ...result.data,
-                profilePic: profilePic || result.data.profilePic || null
-            };
-            
-            console.log('User after login with profile pic:', App.currentUser);
-            
-            Utils.showToast(`Welcome ${result.data.firstName}!`, 'ok');
-            App.loadApp();
-        } else {
-            Utils.showToast(result.error || 'Login failed', 'err');
+        if (!email || !password) {
+            Utils.showToast('Please enter email and password', 'warn');
+            return;
         }
-    } catch (error) {
-        Utils.showToast('Login failed: ' + error.message, 'err');
-    }
-},
+        
+        try {
+            const response = await fetch('http://localhost:8080/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ email, password })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                // Fetch full employee data including profile picture
+                const employeeId = result.data.employeeId;
+                let profilePic = null;
+                
+                try {
+                    const empResponse = await fetch(`http://localhost:8080/employee/${employeeId}`, {
+                        credentials: 'include'
+                    });
+                    const empResult = await empResponse.json();
+                    console.log('Full employee data after login:', empResult);
+                    if (empResult.success && empResult.data) {
+                        profilePic = empResult.data.profilePic || empResult.data.profile_pic;
+                    }
+                } catch (err) {
+                    console.error('Error fetching profile pic:', err);
+                }
+                
+                // Set the user with profile picture
+                App.currentUser = {
+                    ...result.data,
+                    profilePic: profilePic || result.data.profilePic || null
+                };
+                
+                console.log('User after login with profile pic:', App.currentUser);
+                
+                Utils.showToast(`Welcome ${result.data.firstName}!`, 'ok');
+                App.loadApp();
+            } else {
+                Utils.showToast(result.error || 'Login failed', 'err');
+            }
+        } catch (error) {
+            Utils.showToast('Login failed: ' + error.message, 'err');
+        }
+    },
 
     async handleRegister() {
         const firstName = document.getElementById('regFname').value.trim();
@@ -279,16 +293,22 @@ const LoginPage = {
         const employeeId = document.getElementById('regEmployeeId').value.trim();
         const email = document.getElementById('regEmail').value.trim();
         const password = document.getElementById('regPass').value;
+        const confirmPassword = document.getElementById('regConfirmPass').value;
         const department = document.getElementById('regDept').value;
         const position = document.getElementById('regPos').value.trim();
         
-        if (!firstName || !lastName || !employeeId || !email || !password || !department || !position) {
+        if (!firstName || !lastName || !employeeId || !email || !password || !confirmPassword || !department || !position) {
             Utils.showToast('All fields are required', 'warn');
             return;
         }
         
         if (password.length < 4) {
             Utils.showToast('Password must be at least 4 characters', 'warn');
+            return;
+        }
+        
+        if (password !== confirmPassword) {
+            Utils.showToast('Passwords do not match', 'warn');
             return;
         }
         
@@ -323,6 +343,7 @@ const LoginPage = {
                 document.getElementById('regEmployeeId').value = '';
                 document.getElementById('regEmail').value = '';
                 document.getElementById('regPass').value = '';
+                document.getElementById('regConfirmPass').value = '';
                 document.getElementById('regDept').value = '';
                 document.getElementById('regPos').value = '';
                 
