@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ELMS | Employee Leave Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#4f46e5', 600: '#4338ca', 700: '#3730a3', 800: '#1e1b4b', 900: '#131035' },
+                        elms: { navy: '#0a2351', gold: '#c9a03d' }
+                    },
+                    fontFamily: { 'sans': ['Inter', 'system-ui', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="antialiased">
+    <div id="app"></div>
+    <script src="js/utils.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/employees.js"></script>
+    <script src="js/department.js"></script>
+    <script src="js/leave.js"></script>
+    <script src="js/leaveRequest.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

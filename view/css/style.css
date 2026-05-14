@@ -1,0 +1,240 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-image: url('../assets/images/background.png');
+    background-size: cover;
+    background-attachment: fixed;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+}
+
+/* Add overlay to make text more readable */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: -1;
+}
+
+/* ELMS Theme Colors */
+.unified-header-footer {
+    background: linear-gradient(135deg, #0a2351 0%, #1e3a6f 50%, #0a2351 100%);
+}
+
+.app-header {
+    background: linear-gradient(135deg, #0a2351 0%, #1e3a6f 50%, #0a2351 100%);
+}
+
+.elms-gold {
+    color: #c9a03d;
+}
+
+.bg-elms-gold {
+    background-color: #c9a03d;
+}
+
+.text-elms-navy {
+    color: #0a2351;
+}
+
+/* Animations */
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Real-time badge pulse animation */
+.realtime-badge {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Social icons hover effect */
+.social-icon {
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.social-icon:hover {
+    transform: translateY(-3px);
+}
+
+/* Scrollbar styling */
+.scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 10px;
+}
+
+/* Sidebar transition */
+.sidebar-transition {
+    transition: transform 0.2s ease;
+}
+
+/* Modal transitions */
+#globalModal {
+    transition: opacity 0.2s ease;
+}
+
+#modalBody > div {
+    transition: transform 0.2s ease;
+}
+
+/* Toast container */
+#toastContainer {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Table styles */
+.table-container {
+    overflow-x: auto;
+}
+
+/* Form focus styles */
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    ring: 2px solid #818cf8;
+}
+
+/* Button transitions */
+button {
+    transition: all 0.2s ease;
+}
+
+/* Card hover effects */
+.hover-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+/* Make cards semi-transparent to show background */
+.bg-white {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(5px);
+}
+
+.bg-gray-50 {
+    background-color: rgba(249, 250, 251, 0.95) !important;
+}
+
+.bg-amber-50 {
+    background-color: rgba(255, 251, 235, 0.95) !important;
+}
+
+/* Remove background from main containers */
+.bg-gradient-to-br, .from-slate-50, .to-gray-100 {
+    background: transparent !important;
+}
+
+/* Ensure main content area doesn't block background */
+#mainContent {
+    background: transparent !important;
+}
+
+.min-h-screen.bg-gray-50 {
+    background: transparent !important;
+}
+
+/* White Sidebar Styles */
+#mainSidebar {
+    background: white !important;
+}
+
+.sidebar-item {
+    transition: all 0.2s ease;
+    color: #374151;
+}
+
+.sidebar-item:hover {
+    background: #f3f4f6;
+    transform: translateX(5px);
+}
+
+.sidebar-item.bg-primary-50 {
+    background: #eef2ff !important;
+    color: #4f46e5 !important;
+}
+
+/* Sidebar scrollbar for white theme */
+#mainSidebar ::-webkit-scrollbar {
+    width: 4px;
+}
+
+#mainSidebar ::-webkit-scrollbar-track {
+    background: #f3f4f6;
+}
+
+#mainSidebar ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 10px;
+}
+
+#mainSidebar ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* Toggle button for white sidebar */
+.sidebar-toggle-btn {
+    position: absolute;
+    right: -12px;
+    top: 20px;
+    width: 24px;
+    height: 24px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 40;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.sidebar-toggle-btn:hover {
+    background: #f9fafb;
+    transform: scale(1.1);
+}
+
+.sidebar-collapsed .sidebar-toggle-btn i {
+    transform: rotate(180deg);
+}
+
