@@ -157,14 +157,63 @@ const LoginPage = {
                 </div>
 
                 <footer class="unified-header-footer py-6 px-6 mt-auto">
-                    <div class="max-w-7xl mx-auto">
-                        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div class="text-center md:text-left">
-                                <p class="text-white text-xs">2025 Employee Leave Management System. All rights reserved.</p>
-                            </div>
-                        </div>
+    <div class="max-w-7xl mx-auto">
+        <div class="flex flex-col lg:flex-row justify-between items-center gap-5">
+            <!-- Left Section - Copyright -->
+            <div class="text-center lg:text-left order-3 lg:order-1">
+                <p class="text-white/70 text-xs tracking-wide">
+                    <i class="far fa-copyright mr-1"></i> 2025 Employee Leave Management System. All rights reserved.
+                </p>
+            </div>
+            
+            <!-- Center Section - Developers -->
+            <div class="text-center order-1 lg:order-2">
+                <div class="flex flex-col items-center gap-1">
+                    <div class="flex flex-wrap justify-center gap-x-3 gap-y-1">
+                        <span class="text-white/90 text-xs hover:text-white transition-colors">Arjun Mishra</span>
+                        <span class="text-white/50 text-xs">•</span>
+                        <span class="text-white/90 text-xs hover:text-white transition-colors">Chencho Nedup</span>
+                        <span class="text-white/50 text-xs">•</span>
+                        <span class="text-white/90 text-xs hover:text-white transition-colors">Jigme Tashi</span>
+                        <span class="text-white/50 text-xs">•</span>
+                        <span class="text-white/90 text-xs hover:text-white transition-colors">Tshewang Tobgay</span>
                     </div>
-                </footer>
+                </div>
+            </div>
+            
+            <!-- Right Section - Social Media -->
+            <div class="order-2 lg:order-3">
+                <div class="flex gap-4">
+                    <a href="https://facebook.com" target="_blank" 
+                       class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all duration-300 hover:translate-y-[-2px] group">
+                        <i class="fab fa-facebook-f text-white/80 group-hover:text-white text-sm"></i>
+                    </a>
+                    <a href="https://instagram.com" target="_blank" 
+                       class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all duration-300 hover:translate-y-[-2px] group">
+                        <i class="fab fa-instagram text-white/80 group-hover:text-white text-sm"></i>
+                    </a>
+                    <a href="https://youtube.com" target="_blank" 
+                       class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all duration-300 hover:translate-y-[-2px] group">
+                        <i class="fab fa-youtube text-white/80 group-hover:text-white text-sm"></i>
+                    </a>
+                    <a href="https://twitter.com" target="_blank" 
+                       class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all duration-300 hover:translate-y-[-2px] group">
+                        <i class="fab fa-x-twitter text-white/80 group-hover:text-white text-sm"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Decorative Line -->
+        <div class="mt-4 pt-3 border-t border-white/10 text-center">
+            <p class="text-white/40 text-[10px] tracking-wider">
+                <i class="fas fa-heart text-red-400/50 text-[8px] mx-1"></i> 
+                Empowering Workforce Through Smart Leave Management 
+                <i class="fas fa-heart text-red-400/50 text-[8px] mx-1"></i>
+            </p>
+        </div>
+    </div>
+</footer>
             </div>
         `;
     },
@@ -252,7 +301,6 @@ const LoginPage = {
             const result = await response.json();
             
             if (result.success && result.data) {
-                // Fetch full employee data including profile picture
                 const employeeId = result.data.employeeId;
                 let profilePic = null;
                 
@@ -261,7 +309,6 @@ const LoginPage = {
                         credentials: 'include'
                     });
                     const empResult = await empResponse.json();
-                    console.log('Full employee data after login:', empResult);
                     if (empResult.success && empResult.data) {
                         profilePic = empResult.data.profilePic || empResult.data.profile_pic;
                     }
@@ -269,13 +316,10 @@ const LoginPage = {
                     console.error('Error fetching profile pic:', err);
                 }
                 
-                // Set the user with profile picture
                 App.currentUser = {
                     ...result.data,
                     profilePic: profilePic || result.data.profilePic || null
                 };
-                
-                console.log('User after login with profile pic:', App.currentUser);
                 
                 Utils.showToast(`Welcome ${result.data.firstName}!`, 'ok');
                 App.loadApp();
@@ -337,7 +381,6 @@ const LoginPage = {
             if (result.success) {
                 Utils.showToast('Registration successful! Please login.', 'ok');
                 
-                // Clear form
                 document.getElementById('regFname').value = '';
                 document.getElementById('regLname').value = '';
                 document.getElementById('regEmployeeId').value = '';
@@ -347,7 +390,6 @@ const LoginPage = {
                 document.getElementById('regDept').value = '';
                 document.getElementById('regPos').value = '';
                 
-                // Switch to login tab and fill email
                 this.switchTab('login');
                 document.getElementById('loginEmail').value = email;
             } else {
