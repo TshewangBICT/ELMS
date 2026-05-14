@@ -73,6 +73,7 @@ func InitializeRoutes() {
 	router.HandleFunc("/leave/balance", middleware.AuthMiddleware(controller.GetLeaveBalance)).Methods("GET")
 	router.HandleFunc("/leave/colleagues-on-leave", middleware.AuthMiddleware(controller.GetColleaguesOnLeave)).Methods("GET")
 	router.HandleFunc("/leave/{id}/cancel", middleware.AuthMiddleware(controller.CancelLeave)).Methods("DELETE")
+	router.HandleFunc("/leave/{id}/update", middleware.AuthMiddleware(controller.UpdateLeave)).Methods("PUT")
 
 	// Admin only leave routes
 	router.HandleFunc("/leave/all", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetAllLeaves))).Methods("GET")

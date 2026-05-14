@@ -271,6 +271,210 @@ func ApproveLeave(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetLeaveByID - GET /leave/{id}
+func GetLeaveByID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid leave ID")
+		return
+	}
+
+	// Get session to verify ownership
+	session, _ := store.Get(r, "elms-session")
+	employeeID, _ := session.Values["employeeID"].(string)
+	userRole, _ := session.Values["role"].(string)
+
+	leave, err := model.GetLeaveByID(id)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusNotFound, "Leave request not found")
+		return
+	}
+
+	// Check if user has permission to view this leave
+	if leave.EmployeeID != employeeID && userRole != "admin" {
+		httpResp.RespondWithError(w, http.StatusForbidden, "Access denied")
+		return
+	}
+
+	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    leave,
+	})
+}
+
+// UpdateLeave - PUT /leave/{id}/update (Update pending leave request)
+func UpdateLeave(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid leave ID")
+		return
+	}
+
+	// Get employee from session
+	session, _ := store.Get(r, "elms-session")
+	employeeID, ok := session.Values["employeeID"].(string)
+	if !ok {
+		httpResp.RespondWithError(w, http.StatusUnauthorized, "Please login first")
+		return
+	}
+
+	// Get current leave request
+	leave, err := model.GetLeaveByID(id)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusNotFound, "Leave request not found")
+		return
+	}
+
+	// Check if user owns this leave
+	if leave.EmployeeID != employeeID {
+		httpResp.RespondWithError(w, http.StatusForbidden, "You can only edit your own leave requests")
+		return
+	}
+
+	// Check if leave is still pending
+	if leave.Status != "pending" {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Only pending leave requests can be edited")
+		return
+	}
+
+	var req struct {
+		LeaveType    string  `json:"leaveType"`
+		DurationType string  `json:"durationType"`
+		FromDate     string  `json:"fromDate"`
+		ToDate       string  `json:"toDate"`
+		Reason       string  `json:"reason"`
+		Days         float64 `json:"days"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
+		return
+	}
+	r.Body.Close()
+
+	// Validate dates
+	fromDate, err := time.Parse("2006-01-02", req.FromDate)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid from date format. Use YYYY-MM-DD")
+		return
+	}
+
+	toDate, err := time.Parse("2006-01-02", req.ToDate)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid to date format. Use YYYY-MM-DD")
+		return
+	}
+
+	if toDate.Before(fromDate) {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "To date cannot be before from date")
+		return
+	}
+
+	// Calculate new days
+	var newDays float64
+	if req.DurationType == "half" {
+		newDays = 0.5
+	} else {
+		newDays = float64(toDate.Sub(fromDate).Hours()/24) + 1
+	}
+
+	// Check leave balance if leave type changed or days increased
+	if req.LeaveType != leave.LeaveType || newDays > leave.Days {
+		balance, err := model.GetLeaveBalance(employeeID)
+		if err != nil {
+			httpResp.RespondWithError(w, http.StatusInternalServerError, "Error fetching leave balance")
+			return
+		}
+
+		var availableBalance float64
+		switch req.LeaveType {
+		case "Casual Leave":
+			availableBalance = balance.CasualLeaveRemaining
+		case "Earned Leave":
+			availableBalance = balance.EarnedLeaveRemaining
+		case "Maternity Leave":
+			availableBalance = balance.MaternityLeaveRemaining
+		case "Paternity Leave":
+			availableBalance = balance.PaternityLeaveRemaining
+		case "Study Leave":
+			availableBalance = balance.StudyLeaveRemaining
+		case "Extra Ordinary Leave":
+			availableBalance = balance.ExtraOrdinaryLeaveRemaining
+		case "Bereavement Leave":
+			availableBalance = balance.BereavementLeaveRemaining
+		default:
+			httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid leave type")
+			return
+		}
+
+		// If changing type, add back original days to available balance
+		if req.LeaveType != leave.LeaveType {
+			var originalBalance float64
+			switch leave.LeaveType {
+			case "Casual Leave":
+				originalBalance = balance.CasualLeaveRemaining + leave.Days
+			case "Earned Leave":
+				originalBalance = balance.EarnedLeaveRemaining + leave.Days
+			case "Maternity Leave":
+				originalBalance = balance.MaternityLeaveRemaining + leave.Days
+			case "Paternity Leave":
+				originalBalance = balance.PaternityLeaveRemaining + leave.Days
+			case "Study Leave":
+				originalBalance = balance.StudyLeaveRemaining + leave.Days
+			case "Extra Ordinary Leave":
+				originalBalance = balance.ExtraOrdinaryLeaveRemaining + leave.Days
+			case "Bereavement Leave":
+				originalBalance = balance.BereavementLeaveRemaining + leave.Days
+			default:
+				originalBalance = availableBalance + leave.Days
+			}
+			availableBalance = originalBalance
+		} else {
+			// Same type, check if net increase is within balance
+			availableBalance = availableBalance + leave.Days
+		}
+
+		if availableBalance < newDays {
+			httpResp.RespondWithError(w, http.StatusBadRequest,
+				fmt.Sprintf("Insufficient leave balance. Available: %.1f, Requested: %.1f", availableBalance, newDays))
+			return
+		}
+	}
+
+	// Check for overlapping leave (excluding current leave)
+	overlap, err := model.CheckLeaveOverlapExcludingCurrent(employeeID, req.FromDate, req.ToDate, id)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error checking leave overlap")
+		return
+	}
+	if overlap {
+		httpResp.RespondWithError(w, http.StatusConflict, "You already have another leave request for this period")
+		return
+	}
+
+	// Update leave request
+	if err := model.UpdateLeaveRequest(id, req.LeaveType, req.DurationType, req.FromDate, req.ToDate, newDays, req.Reason); err != nil {
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error updating leave request: "+err.Error())
+		return
+	}
+
+	// Create notification for the update
+	model.CreateNotification(employeeID,
+		fmt.Sprintf("Your %s leave request has been updated to %s (%.1f days from %s to %s).",
+			leave.LeaveType, req.LeaveType, newDays, req.FromDate, req.ToDate), "info")
+
+	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "Leave request updated successfully",
+	})
+}
+
 // CancelLeave - DELETE /leave/{id}/cancel (Employee)
 func CancelLeave(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

@@ -118,6 +118,243 @@ func GetLeaveByID(id int) (*LeaveRequest, error) {
 	return &leave, nil
 }
 
+// CheckLeaveOverlapExcludingCurrent - Check for overlapping leave excluding current leave ID
+func CheckLeaveOverlapExcludingCurrent(employeeID, fromDate, toDate string, excludeID int) (bool, error) {
+	var count int
+	query := `
+		SELECT COUNT(*)
+		FROM leave_requests
+		WHERE employee_id = $1 
+			AND id != $2
+			AND status != 'cancelled'
+			AND (
+				(from_date <= $3 AND to_date >= $3) OR
+				(from_date <= $4 AND to_date >= $4) OR
+				(from_date >= $3 AND to_date <= $4)
+			)
+	`
+
+	err := postgres.Db.QueryRow(query, employeeID, excludeID, fromDate, toDate).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// UpdateLeaveRequest - Update an existing leave request (only for pending status)
+func UpdateLeaveRequest(id int, leaveType, durationType, fromDate, toDate string, days float64, reason string) error {
+	query := `
+		UPDATE leave_requests 
+		SET leave_type = $1, 
+			duration_type = $2, 
+			from_date = $3::date, 
+			to_date = $4::date, 
+			days = $5, 
+			reason = $6,
+			updated_at = $7
+		WHERE id = $8 AND status = 'pending'
+	`
+
+	result, err := postgres.Db.Exec(query, leaveType, durationType, fromDate, toDate, days, reason, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("database error: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("leave request not found or not pending (only pending requests can be edited)")
+	}
+
+	return nil
+}
+
+// GetLeaveBalanceWithDetails - Get leave balance with used and remaining details (if you need more detailed balance)
+func GetLeaveBalanceWithDetails(employeeID string) (map[string]interface{}, error) {
+	var balance struct {
+		EmployeeID             string
+		CasualLeave            int
+		CasualLeaveUsed        float64
+		EarnedLeave            int
+		EarnedLeaveUsed        float64
+		MaternityLeave         int
+		MaternityLeaveUsed     float64
+		PaternityLeave         int
+		PaternityLeaveUsed     float64
+		StudyLeave             int
+		StudyLeaveUsed         float64
+		ExtraOrdinaryLeave     int
+		ExtraOrdinaryLeaveUsed float64
+		BereavementLeave       int
+		BereavementLeaveUsed   float64
+	}
+
+	query := `
+		SELECT 
+			employee_id,
+			casual_leave, casual_leave_used,
+			earned_leave, earned_leave_used,
+			maternity_leave, maternity_leave_used,
+			paternity_leave, paternity_leave_used,
+			study_leave, study_leave_used,
+			extra_ordinary_leave, extra_ordinary_leave_used,
+			bereavement_leave, bereavement_leave_used
+		FROM leave_balances 
+		WHERE employee_id = $1
+	`
+
+	err := postgres.Db.QueryRow(query, employeeID).Scan(
+		&balance.EmployeeID,
+		&balance.CasualLeave, &balance.CasualLeaveUsed,
+		&balance.EarnedLeave, &balance.EarnedLeaveUsed,
+		&balance.MaternityLeave, &balance.MaternityLeaveUsed,
+		&balance.PaternityLeave, &balance.PaternityLeaveUsed,
+		&balance.StudyLeave, &balance.StudyLeaveUsed,
+		&balance.ExtraOrdinaryLeave, &balance.ExtraOrdinaryLeaveUsed,
+		&balance.BereavementLeave, &balance.BereavementLeaveUsed,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Create default balance if not exists
+			insertQuery := `
+				INSERT INTO leave_balances (employee_id)
+				VALUES ($1)
+				RETURNING 
+					employee_id,
+					casual_leave, casual_leave_used,
+					earned_leave, earned_leave_used,
+					maternity_leave, maternity_leave_used,
+					paternity_leave, paternity_leave_used,
+					study_leave, study_leave_used,
+					extra_ordinary_leave, extra_ordinary_leave_used,
+					bereavement_leave, bereavement_leave_used
+			`
+			err = postgres.Db.QueryRow(insertQuery, employeeID).Scan(
+				&balance.EmployeeID,
+				&balance.CasualLeave, &balance.CasualLeaveUsed,
+				&balance.EarnedLeave, &balance.EarnedLeaveUsed,
+				&balance.MaternityLeave, &balance.MaternityLeaveUsed,
+				&balance.PaternityLeave, &balance.PaternityLeaveUsed,
+				&balance.StudyLeave, &balance.StudyLeaveUsed,
+				&balance.ExtraOrdinaryLeave, &balance.ExtraOrdinaryLeaveUsed,
+				&balance.BereavementLeave, &balance.BereavementLeaveUsed,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("error creating leave balance: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("error fetching leave balance: %w", err)
+		}
+	}
+
+	// Calculate remaining balances
+	result := map[string]interface{}{
+		"employeeId":                  balance.EmployeeID,
+		"casualLeave":                 balance.CasualLeave,
+		"casualLeaveUsed":             balance.CasualLeaveUsed,
+		"casualLeaveRemaining":        float64(balance.CasualLeave) - balance.CasualLeaveUsed,
+		"earnedLeave":                 balance.EarnedLeave,
+		"earnedLeaveUsed":             balance.EarnedLeaveUsed,
+		"earnedLeaveRemaining":        float64(balance.EarnedLeave) - balance.EarnedLeaveUsed,
+		"maternityLeave":              balance.MaternityLeave,
+		"maternityLeaveUsed":          balance.MaternityLeaveUsed,
+		"maternityLeaveRemaining":     float64(balance.MaternityLeave) - balance.MaternityLeaveUsed,
+		"paternityLeave":              balance.PaternityLeave,
+		"paternityLeaveUsed":          balance.PaternityLeaveUsed,
+		"paternityLeaveRemaining":     float64(balance.PaternityLeave) - balance.PaternityLeaveUsed,
+		"studyLeave":                  balance.StudyLeave,
+		"studyLeaveUsed":              balance.StudyLeaveUsed,
+		"studyLeaveRemaining":         float64(balance.StudyLeave) - balance.StudyLeaveUsed,
+		"extraOrdinaryLeave":          balance.ExtraOrdinaryLeave,
+		"extraOrdinaryLeaveUsed":      balance.ExtraOrdinaryLeaveUsed,
+		"extraOrdinaryLeaveRemaining": float64(balance.ExtraOrdinaryLeave) - balance.ExtraOrdinaryLeaveUsed,
+		"bereavementLeave":            balance.BereavementLeave,
+		"bereavementLeaveUsed":        balance.BereavementLeaveUsed,
+		"bereavementLeaveRemaining":   float64(balance.BereavementLeave) - balance.BereavementLeaveUsed,
+	}
+
+	return result, nil
+}
+
+// GetUserPendingLeaveCount - Get count of pending leaves for a user
+func GetUserPendingLeaveCount(employeeID string) (int, error) {
+	var count int
+	query := `
+		SELECT COUNT(*)
+		FROM leave_requests
+		WHERE employee_id = $1 AND status = 'pending'
+	`
+	err := postgres.Db.QueryRow(query, employeeID).Scan(&count)
+	return count, err
+}
+
+// GetLeaveRequestsByDateRange - Get leave requests within a date range (for reporting)
+func GetLeaveRequestsByDateRange(startDate, endDate, status string) ([]LeaveRequest, error) {
+	query := `
+		SELECT 
+			l.id, l.employee_id, l.leave_type, l.duration_type, 
+			l.from_date, l.to_date, l.days, l.reason, l.status, 
+			COALESCE(l.approved_by, ''), l.created_at, l.updated_at,
+			e.first_name, e.last_name, e.department
+		FROM leave_requests l
+		JOIN employees e ON l.employee_id = e.employee_id
+		WHERE l.from_date >= $1 AND l.to_date <= $2
+	`
+	args := []interface{}{startDate, endDate}
+
+	if status != "" && status != "all" {
+		query += " AND l.status = $3"
+		args = append(args, status)
+	}
+
+	query += " ORDER BY l.from_date ASC"
+
+	rows, err := postgres.Db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var leaves []LeaveRequest
+	for rows.Next() {
+		var leave LeaveRequest
+		var approvedBy sql.NullString
+		var firstName, lastName, department string
+
+		err := rows.Scan(
+			&leave.ID,
+			&leave.EmployeeID,
+			&leave.LeaveType,
+			&leave.DurationType,
+			&leave.FromDate,
+			&leave.ToDate,
+			&leave.Days,
+			&leave.Reason,
+			&leave.Status,
+			&approvedBy,
+			&leave.CreatedAt,
+			&leave.UpdatedAt,
+			&firstName,
+			&lastName,
+			&department,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		leave.ApprovedBy = approvedBy.String
+		leave.EmployeeName = firstName + " " + lastName
+		leave.Department = department
+		leaves = append(leaves, leave)
+	}
+
+	return leaves, nil
+}
+
 // GetMyLeaves - Get all leave requests for a specific employee
 func GetMyLeaves(employeeID string) ([]LeaveRequest, error) {
 	query := `

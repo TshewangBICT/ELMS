@@ -1,7 +1,6 @@
 // Leave Management Module
 const Leave = {
     async apply(user) {
-        // Show loading
         document.getElementById('mainContent').innerHTML = `
             <div class="flex justify-center items-center h-64">
                 <div class="text-center">
@@ -12,11 +11,9 @@ const Leave = {
         `;
         
         try {
-            // Fetch leave balance from API
             const balanceResult = await API.getLeaveBalance();
             const balance = balanceResult?.data;
             
-            // Get leave options with remaining balance
             const leaveOptions = LEAVE_TYPES.map(type => {
                 let remaining = 0;
                 switch(type) {
@@ -120,14 +117,12 @@ const Leave = {
     },
 
     submit() {
-        // Get values with correct IDs
         const typeEl = document.getElementById('type');
         const durationRadio = document.querySelector('input[name="duration"]:checked');
         const startDateEl = document.getElementById('startDate');
         const endDateEl = document.getElementById('endDate');
         const reasonEl = document.getElementById('reason');
         
-        // Check if elements exist
         if (!typeEl || !startDateEl || !endDateEl || !reasonEl) {
             Utils.showToast('Form elements not found. Please refresh the page.', 'err');
             return;
@@ -139,7 +134,6 @@ const Leave = {
         const endDate = endDateEl.value;
         const reason = reasonEl.value.trim();
         
-        // Validation
         if (!startDate) {
             Utils.showToast('Please select start date', 'warn');
             return;
@@ -160,7 +154,6 @@ const Leave = {
             return;
         }
         
-        // Show loading state on button
         const submitBtn = document.querySelector('#mainContent button');
         const originalText = submitBtn?.innerHTML;
         if (submitBtn) {
@@ -176,21 +169,14 @@ const Leave = {
             reason: reason
         };
         
-        console.log('Submitting leave request:', leaveData);
-        
-        // Use fetch directly to avoid any API issues
         fetch('http://localhost:8080/leave/apply', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify(leaveData)
         })
         .then(response => response.json())
         .then(result => {
-            console.log('Leave submission response:', result);
-            
             if (result.success) {
                 Utils.showToast('Leave request submitted successfully!', 'ok');
                 setTimeout(() => {
@@ -246,11 +232,25 @@ const Leave = {
                     ? Utils.formatDate(l.fromDate)
                     : `${Utils.formatDate(l.fromDate)} → ${Utils.formatDate(l.toDate)}`;
                 
-                const cancelButton = l.status === 'pending' 
-                    ? `<button onclick="Leave.cancelLeave('${l.id}')" class="text-red-500 hover:text-red-700 transition" title="Cancel Request">
-                            <i class="fas fa-times-circle"></i> Cancel
-                       </button>`
-                    : '-';
+                let actionButtons = '';
+                if (l.status === 'pending') {
+                    actionButtons = `
+                        <div class="flex gap-2">
+                            <button onclick="Leave.openEditModal(${l.id})" 
+                                    class="text-blue-500 hover:text-blue-700 transition" 
+                                    title="Edit Request">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button onclick="Leave.cancelLeave(${l.id})" 
+                                    class="text-red-500 hover:text-red-700 transition" 
+                                    title="Cancel Request">
+                                <i class="fas fa-times-circle"></i> Cancel
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    actionButtons = '<span class="text-gray-400 text-xs">-</span>';
+                }
                 
                 rows += `
                     <tr class="border-b hover:bg-gray-50">
@@ -259,14 +259,20 @@ const Leave = {
                         <td class="p-3">${l.days} day(s)</td>
                         <td class="p-3">${Utils.statusBadge(l.status)}</td>
                         <td class="p-3 max-w-xs truncate" title="${Utils.escapeHtml(l.reason)}">${Utils.escapeHtml(l.reason.substring(0, 50))}${l.reason.length > 50 ? '...' : ''}</td>
-                        <td class="p-3">${cancelButton}</td>
+                        <td class="p-3">${actionButtons}</td>
                     </tr>
                 `;
             }
             
             const html = `
                 <div class="bg-white rounded-2xl p-5 animate-fade-in">
-                    <h3 class="font-bold text-xl mb-4">My Leave History</h3>
+                    <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
+                        <h3 class="font-bold text-xl">My Leave History</h3>
+                        <div class="text-sm text-gray-500">
+                            <i class="fas fa-info-circle"></i> 
+                            <span class="text-amber-600">Pending requests</span> can be edited or cancelled
+                        </div>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-50">
@@ -276,7 +282,7 @@ const Leave = {
                                     <th class="p-3 text-left">Days</th>
                                     <th class="p-3 text-left">Status</th>
                                     <th class="p-3 text-left">Reason</th>
-                                    <th class="p-3 text-left">Action</th>
+                                    <th class="p-3 text-left">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>${rows}</tbody>
@@ -296,6 +302,194 @@ const Leave = {
                     <button onclick="Leave.myLeaves(App.currentUser)" class="mt-4 bg-primary-600 text-white px-4 py-2 rounded-lg">Retry</button>
                 </div>
             `;
+        }
+    },
+
+    async openEditModal(leaveId) {
+        try {
+            // Fetch the leave details
+            const result = await API.getMyLeaves();
+            const leaves = result?.data || [];
+            const leave = leaves.find(l => l.id === leaveId);
+            
+            if (!leave) {
+                Utils.showToast('Leave request not found', 'err');
+                return;
+            }
+            
+            if (leave.status !== 'pending') {
+                Utils.showToast('Only pending leave requests can be edited', 'warn');
+                return;
+            }
+            
+            // Fetch leave balance for validation
+            const balanceResult = await API.getLeaveBalance();
+            const balance = balanceResult?.data;
+            
+            // Get leave options with remaining balance
+            const leaveOptions = LEAVE_TYPES.map(type => {
+                let remaining = 0;
+                switch(type) {
+                    case 'Casual Leave': remaining = balance?.casualLeaveRemaining || 0; break;
+                    case 'Earned Leave': remaining = balance?.earnedLeaveRemaining || 0; break;
+                    case 'Maternity Leave': remaining = balance?.maternityLeaveRemaining || 0; break;
+                    case 'Paternity Leave': remaining = balance?.paternityLeaveRemaining || 0; break;
+                    case 'Study Leave': remaining = balance?.studyLeaveRemaining || 0; break;
+                    case 'Extra Ordinary Leave': remaining = balance?.extraOrdinaryLeaveRemaining || 0; break;
+                    case 'Bereavement Leave': remaining = balance?.bereavementLeaveRemaining || 0; break;
+                    default: remaining = 0;
+                }
+                const isDisabled = remaining <= 0 && type !== leave.leaveType;
+                const selected = type === leave.leaveType ? 'selected' : '';
+                
+                return `<option value="${type}" ${selected} ${isDisabled ? 'disabled style="color: #9ca3af; background-color: #f3f4f6;"' : ''}>
+                            ${type} (${remaining} days left)
+                        </option>`;
+            }).join('');
+            
+            const modalHtml = `
+                <div class="p-6">
+                    <h3 class="font-bold text-xl mb-4 flex items-center gap-2">
+                        <i class="fas fa-edit text-primary-600"></i>
+                        Edit Leave Request
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 block mb-1">Leave Type</label>
+                            <select id="editLeaveType" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                                ${leaveOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 block mb-1">Duration Type</label>
+                            <div class="flex gap-3">
+                                <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="editDuration" value="full" ${leave.durationType === 'full' ? 'checked' : ''}> Full Day
+                                </label>
+                                <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="editDuration" value="half" ${leave.durationType === 'half' ? 'checked' : ''}> Half Day
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 block mb-1">Start Date</label>
+                            <input type="date" id="editStartDate" value="${leave.fromDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 block mb-1">End Date</label>
+                            <input type="date" id="editEndDate" value="${leave.toDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 block mb-1">Reason</label>
+                            <textarea id="editReason" rows="4" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">${Utils.escapeHtml(leave.reason)}</textarea>
+                        </div>
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <div class="flex items-center gap-2 text-yellow-700 text-sm">
+                                <i class="fas fa-info-circle"></i>
+                                <span>Current days: ${leave.days} day(s)</span>
+                            </div>
+                            <p class="text-xs text-yellow-600 mt-1">Changing dates will recalculate the number of days</p>
+                        </div>
+                        <div class="flex gap-3 pt-4">
+                            <button onclick="Leave.updateLeave(${leave.id})" 
+                                    class="flex-1 bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                            <button onclick="Utils.closeModal()" 
+                                    class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            Utils.openModal(modalHtml);
+            
+        } catch (error) {
+            console.error('Error loading leave for edit:', error);
+            Utils.showToast('Error loading leave details', 'err');
+        }
+    },
+
+    async updateLeave(leaveId) {
+        const leaveType = document.getElementById('editLeaveType').value;
+        const durationRadio = document.querySelector('input[name="editDuration"]:checked');
+        const durationType = durationRadio ? durationRadio.value : 'full';
+        const startDate = document.getElementById('editStartDate').value;
+        const endDate = document.getElementById('editEndDate').value;
+        const reason = document.getElementById('editReason').value.trim();
+        
+        if (!startDate || !endDate) {
+            Utils.showToast('Please select both start and end dates', 'warn');
+            return;
+        }
+        
+        if (new Date(startDate) > new Date(endDate)) {
+            Utils.showToast('End date must be after start date', 'err');
+            return;
+        }
+        
+        if (!reason) {
+            Utils.showToast('Please provide a reason', 'warn');
+            return;
+        }
+        
+        // Calculate days
+        let days = 0;
+        if (durationType === 'half') {
+            days = 0.5;
+        } else {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        }
+        
+        const updateData = {
+            leaveType: leaveType,
+            durationType: durationType,
+            fromDate: startDate,
+            toDate: endDate,
+            reason: reason,
+            days: days
+        };
+        
+        try {
+            const response = await fetch(`http://localhost:8080/leave/${leaveId}/update`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(updateData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                Utils.closeModal();
+                Utils.showToast('Leave request updated successfully', 'ok');
+                await this.myLeaves(App.currentUser);
+            } else {
+                Utils.showToast(result.error || 'Failed to update leave request', 'err');
+            }
+        } catch (error) {
+            console.error('Error updating leave:', error);
+            Utils.showToast(error.message || 'Failed to update leave request', 'err');
+        }
+    },
+
+    async cancelLeave(leaveId) {
+        if (!confirm('Are you sure you want to cancel this leave request?')) return;
+        
+        try {
+            const result = await API.cancelLeave(leaveId);
+            if (result.success) {
+                Utils.showToast('Leave request cancelled successfully', 'ok');
+                await this.myLeaves(App.currentUser);
+            } else {
+                Utils.showToast(result.error || 'Failed to cancel leave', 'err');
+            }
+        } catch (error) {
+            Utils.showToast(error.message || 'Failed to cancel leave', 'err');
         }
     },
 
@@ -416,7 +610,7 @@ const Leave = {
                                     <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-medium ${l.durationType === 'half' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}">${l.durationType === 'half' ? 'Half Day' : 'Full Day'}</span></td>
                                     <td class="p-4 text-gray-600"><i class="fas fa-calendar-alt text-gray-400 mr-1 text-xs"></i> ${Utils.formatDate(l.fromDate)} → ${Utils.formatDate(l.toDate)}</td>
                                     <td class="p-4"><span class="font-semibold text-gray-700">${l.days}</span> <span class="text-xs text-gray-400">day(s)</span></td>
-                                 </tr>
+                                </tr>
                             `).join('')}
                         </tbody>
                     </table>
@@ -457,190 +651,6 @@ const Leave = {
                     <button onclick="Leave.colleaguesOnLeave(App.currentUser)" class="mt-4 bg-primary-600 text-white px-4 py-2 rounded-lg">Retry</button>
                 </div>
             `;
-        }
-    },
-
-    async openEditModal(leaveId) {
-    try {
-        const result = await API.getMyLeaves();
-        const leaves = result?.data || [];
-        const leave = leaves.find(l => l.id === leaveId);
-        
-        if (!leave) {
-            Utils.showToast('Leave request not found', 'err');
-            return;
-        }
-        
-        if (leave.status !== 'pending') {
-            Utils.showToast('Only pending leave requests can be edited', 'warn');
-            return;
-        }
-        
-        const balanceResult = await API.getLeaveBalance();
-        const balance = balanceResult?.data;
-        
-        const leaveOptions = LEAVE_TYPES.map(type => {
-            let remaining = 0;
-            switch(type) {
-                case 'Casual Leave': remaining = balance?.casualLeaveRemaining || 0; break;
-                case 'Earned Leave': remaining = balance?.earnedLeaveRemaining || 0; break;
-                case 'Maternity Leave': remaining = balance?.maternityLeaveRemaining || 0; break;
-                case 'Paternity Leave': remaining = balance?.paternityLeaveRemaining || 0; break;
-                case 'Study Leave': remaining = balance?.studyLeaveRemaining || 0; break;
-                case 'Extra Ordinary Leave': remaining = balance?.extraOrdinaryLeaveRemaining || 0; break;
-                case 'Bereavement Leave': remaining = balance?.bereavementLeaveRemaining || 0; break;
-                default: remaining = 0;
-            }
-            const isDisabled = remaining <= 0 && type !== leave.leaveType;
-            const selected = type === leave.leaveType ? 'selected' : '';
-            
-            return `<option value="${type}" ${selected} ${isDisabled ? 'disabled style="color: #9ca3af; background-color: #f3f4f6;"' : ''}>
-                        ${type} (${remaining} days left)
-                    </option>`;
-        }).join('');
-        
-        const modalHtml = `
-            <div class="p-6">
-                <h3 class="font-bold text-xl mb-4 flex items-center gap-2">
-                    <i class="fas fa-edit text-primary-600"></i>
-                    Edit Leave Request
-                </h3>
-                <div class="space-y-4">
-                    <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">Leave Type</label>
-                        <select id="editLeaveType" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                            ${leaveOptions}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">Duration Type</label>
-                        <div class="flex gap-3">
-                            <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
-                                <input type="radio" name="editDuration" value="full" ${leave.durationType === 'full' ? 'checked' : ''}> Full Day
-                            </label>
-                            <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
-                                <input type="radio" name="editDuration" value="half" ${leave.durationType === 'half' ? 'checked' : ''}> Half Day
-                            </label>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">Start Date</label>
-                        <input type="date" id="editStartDate" value="${leave.fromDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                    </div>
-                    <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">End Date</label>
-                        <input type="date" id="editEndDate" value="${leave.toDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                    </div>
-                    <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">Reason</label>
-                        <textarea id="editReason" rows="4" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">${Utils.escapeHtml(leave.reason)}</textarea>
-                    </div>
-                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                        <div class="flex items-center gap-2 text-yellow-700 text-sm">
-                            <i class="fas fa-info-circle"></i>
-                            <span>Current days: ${leave.days} day(s)</span>
-                        </div>
-                        <p class="text-xs text-yellow-600 mt-1">Changing dates will recalculate the number of days</p>
-                    </div>
-                    <div class="flex gap-3 pt-4">
-                        <button onclick="Leave.updateLeave(${leave.id})" 
-                                class="flex-1 bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition">
-                            <i class="fas fa-save"></i> Save Changes
-                        </button>
-                        <button onclick="Utils.closeModal()" 
-                                class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        Utils.openModal(modalHtml);
-        
-    } catch (error) {
-        console.error('Error loading leave for edit:', error);
-        Utils.showToast('Error loading leave details', 'err');
-    }
-},
-
-async updateLeave(leaveId) {
-    const leaveType = document.getElementById('editLeaveType').value;
-    const durationRadio = document.querySelector('input[name="editDuration"]:checked');
-    const durationType = durationRadio ? durationRadio.value : 'full';
-    const startDate = document.getElementById('editStartDate').value;
-    const endDate = document.getElementById('editEndDate').value;
-    const reason = document.getElementById('editReason').value.trim();
-    
-    if (!startDate || !endDate) {
-        Utils.showToast('Please select both start and end dates', 'warn');
-        return;
-    }
-    
-    if (new Date(startDate) > new Date(endDate)) {
-        Utils.showToast('End date must be after start date', 'err');
-        return;
-    }
-    
-    if (!reason) {
-        Utils.showToast('Please provide a reason', 'warn');
-        return;
-    }
-    
-    let days = 0;
-    if (durationType === 'half') {
-        days = 0.5;
-    } else {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    }
-    
-    const updateData = {
-        leaveType: leaveType,
-        durationType: durationType,
-        fromDate: startDate,
-        toDate: endDate,
-        reason: reason,
-        days: days
-    };
-    
-    try {
-        const response = await fetch(`http://localhost:8080/leave/${leaveId}/update`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(updateData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            Utils.closeModal();
-            Utils.showToast('Leave request updated successfully', 'ok');
-            await this.myLeaves(App.currentUser);
-        } else {
-            Utils.showToast(result.error || 'Failed to update leave request', 'err');
-        }
-    } catch (error) {
-        console.error('Error updating leave:', error);
-        Utils.showToast(error.message || 'Failed to update leave request', 'err');
-    }
-},
-
-    async cancelLeave(leaveId) {
-        if (!confirm('Are you sure you want to cancel this leave request?')) return;
-        
-        try {
-            const result = await API.cancelLeave(leaveId);
-            if (result.success) {
-                Utils.showToast('Leave request cancelled successfully', 'ok');
-                await this.myLeaves(App.currentUser);
-            } else {
-                Utils.showToast(result.error || 'Failed to cancel leave', 'err');
-            }
-        } catch (error) {
-            Utils.showToast(error.message || 'Failed to cancel leave', 'err');
         }
     }
 };
