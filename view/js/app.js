@@ -503,59 +503,80 @@ const App = {
 },
 
     async renderPendingLeaves() {
-        console.log('Fetching pending leaves...');
+    console.log('Fetching pending leaves...');
+    
+    try {
+        const result = await API.getPendingLeaves();
+        const leaves = result?.data || [];
+        const currentUserId = this.currentUser?.employeeId;
         
-        try {
-            const result = await API.getPendingLeaves();
-            const leaves = result?.data || [];
-            
-            if (leaves.length === 0) {
-                document.getElementById('mainContent').innerHTML = `
-                    <div class="bg-white rounded-2xl p-8 text-center">
-                        <i class="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
-                        <h3 class="text-xl font-bold text-gray-800 mb-2">No Pending Requests</h3>
-                        <p class="text-gray-500">All leave requests have been processed.</p>
-                        <button onclick="App.renderPendingLeaves()" class="mt-4 bg-primary-600 text-white px-4 py-2 rounded-lg">
-                            <i class="fas fa-sync-alt mr-2"></i> Refresh
-                        </button>
+        if (leaves.length === 0) {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="bg-white rounded-2xl p-8 text-center">
+                    <i class="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">No Pending Requests</h3>
+                    <p class="text-gray-500">All leave requests have been processed.</p>
+                    <button onclick="App.renderPendingLeaves()" class="mt-4 bg-primary-600 text-white px-4 py-2 rounded-lg">
+                        <i class="fas fa-sync-alt mr-2"></i> Refresh
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = `
+            <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div class="border-b p-5 bg-gradient-to-r from-blue-50 to-white flex justify-between items-center">
+                    <div>
+                        <h2 class="font-bold text-xl flex items-center gap-2">
+                            <i class="fas fa-clipboard-list text-primary-600"></i>
+                            Pending Leave Approvals
+                        </h2>
+                        <p class="text-sm text-gray-500 mt-1">${leaves.length} request(s) awaiting your action</p>
                     </div>
-                `;
-                return;
-            }
-            
-            let html = `
-                <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div class="border-b p-5 bg-gradient-to-r from-blue-50 to-white flex justify-between items-center">
-                        <div>
-                            <h2 class="font-bold text-xl flex items-center gap-2">
-                                <i class="fas fa-clipboard-list text-primary-600"></i>
-                                Pending Leave Approvals
-                            </h2>
-                            <p class="text-sm text-gray-500 mt-1">${leaves.length} request(s) awaiting your action</p>
-                        </div>
-                        <button onclick="App.renderPendingLeaves()" class="text-primary-600 hover:text-primary-800 transition">
-                            <i class="fas fa-sync-alt"></i> Refresh
-                        </button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="p-4 text-left">Employee</th>
-                                    <th class="p-4 text-left">Department</th>
-                                    <th class="p-4 text-left">Leave Type</th>
-                                    <th class="p-4 text-left">From Date</th>
-                                    <th class="p-4 text-left">To Date</th>
-                                    <th class="p-4 text-left">Days</th>
-                                    <th class="p-4 text-left">Reason</th>
-                                    <th class="p-4 text-left">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${leaves.map(leave => `
-                                    <tr class="border-b hover:bg-gray-50">
+                    <button onclick="App.renderPendingLeaves()" class="text-primary-600 hover:text-primary-800 transition">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="p-4 text-left">Employee</th>
+                                <th class="p-4 text-left">Department</th>
+                                <th class="p-4 text-left">Leave Type</th>
+                                <th class="p-4 text-left">From Date</th>
+                                <th class="p-4 text-left">To Date</th>
+                                <th class="p-4 text-left">Days</th>
+                                <th class="p-4 text-left">Reason</th>
+                                <th class="p-4 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${leaves.map(leave => {
+                                const isSelf = leave.employeeId === currentUserId;
+                                const actionButtons = isSelf ? `
+                                    <span class="text-gray-400 text-xs">
+                                        <i class="fas fa-lock"></i> Cannot self-approve
+                                    </span>
+                                ` : `
+                                    <div class="flex gap-2">
+                                        <button onclick="App.approveLeave(${leave.id}, 'approved')" 
+                                                class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg text-sm transition">
+                                            <i class="fas fa-check"></i> Approve
+                                        </button>
+                                        <button onclick="App.approveLeave(${leave.id}, 'rejected')" 
+                                                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition">
+                                            <i class="fas fa-times"></i> Reject
+                                        </button>
+                                    </div>
+                                `;
+                                
+                                return `
+                                    <tr class="border-b hover:bg-gray-50 ${isSelf ? 'bg-amber-50' : ''}">
                                         <td class="p-4 font-medium">
                                             ${leave.employeeName || leave.first_name || 'N/A'} ${leave.last_name || ''}
+                                            ${isSelf ? '<span class="ml-2 text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">You</span>' : ''}
                                             <div class="text-xs text-gray-400">${leave.employee_id || leave.employeeId}</div>
                                         </td>
                                         <td class="p-4">${leave.department || 'N/A'}</td>
@@ -568,56 +589,56 @@ const App = {
                                         <td class="p-4">${Utils.formatDate(leave.to_date || leave.toDate)}</td>
                                         <td class="p-4">${leave.days}</td>
                                         <td class="p-4 max-w-xs truncate" title="${leave.reason}">${leave.reason}</td>
-                                        <td class="p-4">
-                                            <div class="flex gap-2">
-                                                <button onclick="App.approveLeave(${leave.id}, 'approved')" 
-                                                        class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg text-sm transition">
-                                                    <i class="fas fa-check"></i> Approve
-                                                </button>
-                                                <button onclick="App.approveLeave(${leave.id}, 'rejected')" 
-                                                        class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition">
-                                                    <i class="fas fa-times"></i> Reject
-                                                </button>
-                                            </div>
-                                        </td>
+                                        <td class="p-4">${actionButtons}</td>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
                 </div>
-            `;
-            
-            document.getElementById('mainContent').innerHTML = html;
-            
-        } catch (error) {
-            console.error('Error loading pending leaves:', error);
-            document.getElementById('mainContent').innerHTML = `
-                <div class="bg-white rounded-2xl p-8 text-center">
-                    <i class="fas fa-exclamation-triangle text-6xl text-red-500 mb-4"></i>
-                    <h3 class="text-xl font-bold text-gray-800 mb-2">Error Loading Data</h3>
-                    <p class="text-gray-600">${error.message}</p>
-                    <button onclick="App.renderPendingLeaves()" class="mt-4 bg-primary-600 text-white px-4 py-2 rounded-lg">Retry</button>
-                </div>
-            `;
-        }
-    },
+            </div>
+        `;
+        
+        document.getElementById('mainContent').innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading pending leaves:', error);
+        document.getElementById('mainContent').innerHTML = `
+            <div class="bg-white rounded-2xl p-8 text-center">
+                <i class="fas fa-exclamation-triangle text-6xl text-red-500 mb-4"></i>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Error Loading Data</h3>
+                <p class="text-gray-600">${error.message}</p>
+                <button onclick="App.renderPendingLeaves()" class="mt-4 bg-primary-600 text-white px-4 py-2 rounded-lg">Retry</button>
+            </div>
+        `;
+    }
+},
 
-    async approveLeave(leaveId, status) {
-        try {
-            const result = await API.approveLeave(leaveId, status);
-            
-            if (result.success) {
-                Utils.showToast(`Leave request ${status === 'approved' ? 'approved' : 'rejected'} successfully`, 'ok');
-                await this.renderPendingLeaves();
-                await this.updateNotificationBadges();
-            } else {
-                Utils.showToast(result.error || 'Failed to process leave request', 'err');
-            }
-        } catch (error) {
-            Utils.showToast(error.message || 'Failed to process leave request', 'err');
+async approveLeave(leaveId, status) {
+    // Check if trying to approve own leave (additional safety)
+    const pendingLeaves = await API.getPendingLeaves();
+    const leave = pendingLeaves?.data?.find(l => l.id === leaveId);
+    
+    if (leave && leave.employeeId === this.currentUser?.employeeId) {
+        Utils.showToast('You cannot approve or reject your own leave request', 'warn');
+        await this.renderPendingLeaves();
+        return;
+    }
+    
+    try {
+        const result = await API.approveLeave(leaveId, status);
+        
+        if (result.success) {
+            Utils.showToast(`Leave request ${status === 'approved' ? 'approved' : 'rejected'} successfully`, 'ok');
+            await this.renderPendingLeaves();
+            await this.updateNotificationBadges();
+        } else {
+            Utils.showToast(result.error || 'Failed to process leave request', 'err');
         }
-    },
+    } catch (error) {
+        Utils.showToast(error.message || 'Failed to process leave request', 'err');
+    }
+},
 
     async updateNotificationBadges() {
         const badge = document.getElementById('notifBadge');

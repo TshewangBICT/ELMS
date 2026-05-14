@@ -108,6 +108,9 @@ func GetLeaveByID(id int) (*LeaveRequest, error) {
 	)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("leave request not found with ID: %d", id)
+		}
 		return nil, err
 	}
 
@@ -418,8 +421,6 @@ func GetLeaveBalance(employeeID string) (*LeaveBalance, error) {
 
 	return &balance, nil
 }
-
-
 
 // GetEmployeesOnLeaveToday - Get all employees on leave today
 func GetEmployeesOnLeaveToday() ([]LeaveRequest, error) {

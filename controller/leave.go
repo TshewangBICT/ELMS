@@ -240,6 +240,19 @@ func ApproveLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get leave request details to check if admin is approving their own leave
+	leave, err := model.GetLeaveByID(id)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusNotFound, "Leave request not found")
+		return
+	}
+
+	// Prevent admin from approving/rejecting their own leave
+	if leave.EmployeeID == adminID {
+		httpResp.RespondWithError(w, http.StatusForbidden, "You cannot approve or reject your own leave request")
+		return
+	}
+
 	if err := model.ApproveLeave(id, adminID, req.Status); err != nil {
 		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error processing leave: "+err.Error())
 		return

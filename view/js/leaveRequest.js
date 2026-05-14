@@ -17,6 +17,7 @@ const LeaveRequests = {
             console.log('Pending leaves response:', result);
             
             const leaves = result?.data || [];
+            const currentUserId = App.currentUser?.employeeId;
             
             if (leaves.length === 0) {
                 document.getElementById('mainContent').innerHTML = `
@@ -53,10 +54,30 @@ const LeaveRequests = {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${leaves.map(leave => `
-                                    <tr class="border-b hover:bg-gray-50">
+                                ${leaves.map(leave => {
+                                    const isSelf = leave.employeeId === currentUserId;
+                                    const actionButtons = isSelf ? `
+                                        <span class="text-gray-400 text-xs" title="You cannot approve your own leave request">
+                                            <i class="fas fa-lock"></i> Cannot self-approve
+                                        </span>
+                                    ` : `
+                                        <div class="flex gap-2">
+                                            <button onclick="LeaveRequests.approve(${leave.id})" 
+                                                    class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg text-sm transition">
+                                                <i class="fas fa-check"></i> Approve
+                                            </button>
+                                            <button onclick="LeaveRequests.reject(${leave.id})" 
+                                                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition">
+                                                <i class="fas fa-times"></i> Reject
+                                            </button>
+                                        </div>
+                                    `;
+                                    
+                                    return `
+                                    <tr class="border-b hover:bg-gray-50 ${isSelf ? 'bg-amber-50' : ''}">
                                         <td class="p-4 font-medium">
                                             ${leave.employeeName || 'N/A'}
+                                            ${isSelf ? '<span class="ml-2 text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">You</span>' : ''}
                                             <div class="text-xs text-gray-400">${leave.employeeId || ''}</div>
                                         </td>
                                         <td class="p-4">${leave.department || 'N/A'}</td>
@@ -69,20 +90,9 @@ const LeaveRequests = {
                                         <td class="p-4">${Utils.formatDate(leave.toDate)}</td>
                                         <td class="p-4">${leave.days}</td>
                                         <td class="p-4 max-w-xs truncate" title="${leave.reason}">${leave.reason}</td>
-                                        <td class="p-4">
-                                            <div class="flex gap-2">
-                                                <button onclick="LeaveRequests.approve(${leave.id})" 
-                                                        class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg text-sm transition">
-                                                    <i class="fas fa-check"></i> Approve
-                                                </button>
-                                                <button onclick="LeaveRequests.reject(${leave.id})" 
-                                                        class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition">
-                                                    <i class="fas fa-times"></i> Reject
-                                                </button>
-                                            </div>
-                                        </td>
+                                        <td class="p-4">${actionButtons}</td>
                                     </tr>
-                                `).join('')}
+                                `}).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -107,6 +117,13 @@ const LeaveRequests = {
     async approve(leaveId) {
         console.log('Approving leave:', leaveId);
         
+        // Double-check if this is self-approval
+        const leaveRow = event?.target?.closest('tr');
+        if (leaveRow && leaveRow.classList.contains('bg-amber-50')) {
+            Utils.showToast('You cannot approve your own leave request', 'warn');
+            return;
+        }
+        
         try {
             const result = await API.approveLeave(leaveId, 'approved');
             console.log('Approve response:', result);
@@ -126,6 +143,13 @@ const LeaveRequests = {
     
     async reject(leaveId) {
         console.log('Rejecting leave:', leaveId);
+        
+        // Double-check if this is self-rejection
+        const leaveRow = event?.target?.closest('tr');
+        if (leaveRow && leaveRow.classList.contains('bg-amber-50')) {
+            Utils.showToast('You cannot reject your own leave request', 'warn');
+            return;
+        }
         
         if (!confirm('Are you sure you want to reject this leave request?')) return;
         
