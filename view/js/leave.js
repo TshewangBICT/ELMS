@@ -460,6 +460,174 @@ const Leave = {
         }
     },
 
+    async openEditModal(leaveId) {
+    try {
+        const result = await API.getMyLeaves();
+        const leaves = result?.data || [];
+        const leave = leaves.find(l => l.id === leaveId);
+        
+        if (!leave) {
+            Utils.showToast('Leave request not found', 'err');
+            return;
+        }
+        
+        if (leave.status !== 'pending') {
+            Utils.showToast('Only pending leave requests can be edited', 'warn');
+            return;
+        }
+        
+        const balanceResult = await API.getLeaveBalance();
+        const balance = balanceResult?.data;
+        
+        const leaveOptions = LEAVE_TYPES.map(type => {
+            let remaining = 0;
+            switch(type) {
+                case 'Casual Leave': remaining = balance?.casualLeaveRemaining || 0; break;
+                case 'Earned Leave': remaining = balance?.earnedLeaveRemaining || 0; break;
+                case 'Maternity Leave': remaining = balance?.maternityLeaveRemaining || 0; break;
+                case 'Paternity Leave': remaining = balance?.paternityLeaveRemaining || 0; break;
+                case 'Study Leave': remaining = balance?.studyLeaveRemaining || 0; break;
+                case 'Extra Ordinary Leave': remaining = balance?.extraOrdinaryLeaveRemaining || 0; break;
+                case 'Bereavement Leave': remaining = balance?.bereavementLeaveRemaining || 0; break;
+                default: remaining = 0;
+            }
+            const isDisabled = remaining <= 0 && type !== leave.leaveType;
+            const selected = type === leave.leaveType ? 'selected' : '';
+            
+            return `<option value="${type}" ${selected} ${isDisabled ? 'disabled style="color: #9ca3af; background-color: #f3f4f6;"' : ''}>
+                        ${type} (${remaining} days left)
+                    </option>`;
+        }).join('');
+        
+        const modalHtml = `
+            <div class="p-6">
+                <h3 class="font-bold text-xl mb-4 flex items-center gap-2">
+                    <i class="fas fa-edit text-primary-600"></i>
+                    Edit Leave Request
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Leave Type</label>
+                        <select id="editLeaveType" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                            ${leaveOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Duration Type</label>
+                        <div class="flex gap-3">
+                            <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="editDuration" value="full" ${leave.durationType === 'full' ? 'checked' : ''}> Full Day
+                            </label>
+                            <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="editDuration" value="half" ${leave.durationType === 'half' ? 'checked' : ''}> Half Day
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Start Date</label>
+                        <input type="date" id="editStartDate" value="${leave.fromDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">End Date</label>
+                        <input type="date" id="editEndDate" value="${leave.toDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Reason</label>
+                        <textarea id="editReason" rows="4" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">${Utils.escapeHtml(leave.reason)}</textarea>
+                    </div>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <div class="flex items-center gap-2 text-yellow-700 text-sm">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Current days: ${leave.days} day(s)</span>
+                        </div>
+                        <p class="text-xs text-yellow-600 mt-1">Changing dates will recalculate the number of days</p>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button onclick="Leave.updateLeave(${leave.id})" 
+                                class="flex-1 bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                        <button onclick="Utils.closeModal()" 
+                                class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        Utils.openModal(modalHtml);
+        
+    } catch (error) {
+        console.error('Error loading leave for edit:', error);
+        Utils.showToast('Error loading leave details', 'err');
+    }
+},
+
+async updateLeave(leaveId) {
+    const leaveType = document.getElementById('editLeaveType').value;
+    const durationRadio = document.querySelector('input[name="editDuration"]:checked');
+    const durationType = durationRadio ? durationRadio.value : 'full';
+    const startDate = document.getElementById('editStartDate').value;
+    const endDate = document.getElementById('editEndDate').value;
+    const reason = document.getElementById('editReason').value.trim();
+    
+    if (!startDate || !endDate) {
+        Utils.showToast('Please select both start and end dates', 'warn');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        Utils.showToast('End date must be after start date', 'err');
+        return;
+    }
+    
+    if (!reason) {
+        Utils.showToast('Please provide a reason', 'warn');
+        return;
+    }
+    
+    let days = 0;
+    if (durationType === 'half') {
+        days = 0.5;
+    } else {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    }
+    
+    const updateData = {
+        leaveType: leaveType,
+        durationType: durationType,
+        fromDate: startDate,
+        toDate: endDate,
+        reason: reason,
+        days: days
+    };
+    
+    try {
+        const response = await fetch(`http://localhost:8080/leave/${leaveId}/update`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(updateData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            Utils.closeModal();
+            Utils.showToast('Leave request updated successfully', 'ok');
+            await this.myLeaves(App.currentUser);
+        } else {
+            Utils.showToast(result.error || 'Failed to update leave request', 'err');
+        }
+    } catch (error) {
+        console.error('Error updating leave:', error);
+        Utils.showToast(error.message || 'Failed to update leave request', 'err');
+    }
+},
+
     async cancelLeave(leaveId) {
         if (!confirm('Are you sure you want to cancel this leave request?')) return;
         

@@ -771,46 +771,51 @@ const MainLayout = {
     },
 
     updateSidebar(currentPage) {
-        const isAdmin = App.currentUser?.role === 'admin';
-        
-        const items = isAdmin ? [
-            { id: 'dashboard', icon: 'fa-chart-line', label: 'Dashboard' },
-            { divider: true, title: 'MANAGEMENT' },
-            { id: 'manageEmployees', icon: 'fa-users-gear', label: 'All Employees' },
-            { id: 'manageDepartments', icon: 'fa-building', label: 'Departments' },
-            { id: 'leaveRequests', icon: 'fa-clipboard-list', label: 'Leave Approvals' },
-            { divider: true, title: 'NOTIFICATIONS' },
-            { id: 'notifications', icon: 'fa-bell', label: 'Notifications' },
-            { divider: true, title: 'PERSONAL' },
-            { id: 'profile', icon: 'fa-user', label: 'My Profile' },
-            { id: 'changePassword', icon: 'fa-lock', label: 'Change Password' }
-        ] : [
-            { id: 'dashboard', icon: 'fa-chart-line', label: 'Dashboard' },
-            { divider: true, title: 'LEAVE MANAGEMENT' },
-            { id: 'applyLeave', icon: 'fa-calendar-plus', label: 'Apply Leave' },
-            { id: 'myLeaves', icon: 'fa-calendar-check', label: 'My Leave History' },
-            { id: 'leaveBalance', icon: 'fa-chart-pie', label: 'Leave Balance' },
-            { id: 'colleaguesOnLeave', icon: 'fa-people-arrows', label: "Today's Leave" },
-            { divider: true, title: 'NOTIFICATIONS' },
-            { id: 'notifications', icon: 'fa-bell', label: 'Notifications' },
-            { divider: true, title: 'ACCOUNT SETTINGS' },
-            { id: 'profile', icon: 'fa-user', label: 'My Profile' },
-            { id: 'changePassword', icon: 'fa-lock', label: 'Change Password' }
-        ];
-        
-        let html = '';
-        for (const it of items) {
-            if (it.divider) {
-                html += `<div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 pt-4 pb-1.5">${it.title}</div>`;
-            } else {
-                const active = currentPage === it.id ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600' : 'text-gray-700 hover:bg-gray-50';
-                html += `<div class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl cursor-pointer ${active}" onclick="App.navigateTo('${it.id}')"><i class="fas ${it.icon} w-5"></i><span>${it.label}</span></div>`;
-            }
+    const isAdmin = App.currentUser?.role === 'admin';
+    
+    const items = isAdmin ? [
+        { id: 'dashboard', icon: 'fa-chart-line', label: 'Dashboard' },
+        { divider: true, title: 'LEAVE MANAGEMENT' },
+        { id: 'applyLeave', icon: 'fa-calendar-plus', label: 'Apply Leave' },
+        { id: 'myLeaves', icon: 'fa-calendar-check', label: 'My Leave History' },
+        { id: 'leaveBalance', icon: 'fa-chart-pie', label: 'Leave Balance' },
+        { id: 'colleaguesOnLeave', icon: 'fa-people-arrows', label: "Today's Leave" },
+        { divider: true, title: 'MANAGEMENT' },
+        { id: 'manageEmployees', icon: 'fa-users-gear', label: 'All Employees' },
+        { id: 'manageDepartments', icon: 'fa-building', label: 'Departments' },
+        { id: 'leaveRequests', icon: 'fa-clipboard-list', label: 'Leave Approvals' },
+        { divider: true, title: 'NOTIFICATIONS' },
+        { id: 'notifications', icon: 'fa-bell', label: 'Notifications' },
+        { divider: true, title: 'PERSONAL' },
+        { id: 'profile', icon: 'fa-user', label: 'My Profile' },
+        { id: 'changePassword', icon: 'fa-lock', label: 'Change Password' }
+    ] : [
+        { id: 'dashboard', icon: 'fa-chart-line', label: 'Dashboard' },
+        { divider: true, title: 'LEAVE MANAGEMENT' },
+        { id: 'applyLeave', icon: 'fa-calendar-plus', label: 'Apply Leave' },
+        { id: 'myLeaves', icon: 'fa-calendar-check', label: 'My Leave History' },
+        { id: 'leaveBalance', icon: 'fa-chart-pie', label: 'Leave Balance' },
+        { id: 'colleaguesOnLeave', icon: 'fa-people-arrows', label: "Today's Leave" },
+        { divider: true, title: 'NOTIFICATIONS' },
+        { id: 'notifications', icon: 'fa-bell', label: 'Notifications' },
+        { divider: true, title: 'ACCOUNT SETTINGS' },
+        { id: 'profile', icon: 'fa-user', label: 'My Profile' },
+        { id: 'changePassword', icon: 'fa-lock', label: 'Change Password' }
+    ];
+    
+    let html = '';
+    for (const it of items) {
+        if (it.divider) {
+            html += `<div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 pt-4 pb-1.5">${it.title}</div>`;
+        } else {
+            const active = currentPage === it.id ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600' : 'text-gray-700 hover:bg-gray-50';
+            html += `<div class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl cursor-pointer ${active}" onclick="App.navigateTo('${it.id}')"><i class="fas ${it.icon} w-5"></i><span>${it.label}</span></div>`;
         }
-        const sidebarNav = document.getElementById('sidebarNav');
-        if (sidebarNav) sidebarNav.innerHTML = html;
-        this.updateSidebarProfile();
-    },
+    }
+    const sidebarNav = document.getElementById('sidebarNav');
+    if (sidebarNav) sidebarNav.innerHTML = html;
+    this.updateSidebarProfile();
+},
 
     updateSidebarProfile() {
     const u = App.currentUser;
