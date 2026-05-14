@@ -306,111 +306,122 @@ const Leave = {
     },
 
     async openEditModal(leaveId) {
-        try {
-            // Fetch the leave details
-            const result = await API.getMyLeaves();
-            const leaves = result?.data || [];
-            const leave = leaves.find(l => l.id === leaveId);
-            
-            if (!leave) {
-                Utils.showToast('Leave request not found', 'err');
-                return;
+    try {
+        // Fetch the leave details
+        const result = await API.getMyLeaves();
+        const leaves = result?.data || [];
+        const leave = leaves.find(l => l.id === leaveId);
+        
+        if (!leave) {
+            Utils.showToast('Leave request not found', 'err');
+            return;
+        }
+        
+        if (leave.status !== 'pending') {
+            Utils.showToast('Only pending leave requests can be edited', 'warn');
+            return;
+        }
+        
+        // Format dates properly
+        const fromDateFormatted = leave.fromDate ? leave.fromDate.split('T')[0] : '';
+        const toDateFormatted = leave.toDate ? leave.toDate.split('T')[0] : '';
+        
+        // Fetch leave balance for validation
+        const balanceResult = await API.getLeaveBalance();
+        const balance = balanceResult?.data;
+        
+        // Get leave options with remaining balance
+        const leaveOptions = LEAVE_TYPES.map(type => {
+            let remaining = 0;
+            switch(type) {
+                case 'Casual Leave': remaining = balance?.casualLeaveRemaining || 0; break;
+                case 'Earned Leave': remaining = balance?.earnedLeaveRemaining || 0; break;
+                case 'Maternity Leave': remaining = balance?.maternityLeaveRemaining || 0; break;
+                case 'Paternity Leave': remaining = balance?.paternityLeaveRemaining || 0; break;
+                case 'Study Leave': remaining = balance?.studyLeaveRemaining || 0; break;
+                case 'Extra Ordinary Leave': remaining = balance?.extraOrdinaryLeaveRemaining || 0; break;
+                case 'Bereavement Leave': remaining = balance?.bereavementLeaveRemaining || 0; break;
+                default: remaining = 0;
             }
+            const isDisabled = remaining <= 0 && type !== leave.leaveType;
+            const selected = type === leave.leaveType ? 'selected' : '';
             
-            if (leave.status !== 'pending') {
-                Utils.showToast('Only pending leave requests can be edited', 'warn');
-                return;
-            }
-            
-            // Fetch leave balance for validation
-            const balanceResult = await API.getLeaveBalance();
-            const balance = balanceResult?.data;
-            
-            // Get leave options with remaining balance
-            const leaveOptions = LEAVE_TYPES.map(type => {
-                let remaining = 0;
-                switch(type) {
-                    case 'Casual Leave': remaining = balance?.casualLeaveRemaining || 0; break;
-                    case 'Earned Leave': remaining = balance?.earnedLeaveRemaining || 0; break;
-                    case 'Maternity Leave': remaining = balance?.maternityLeaveRemaining || 0; break;
-                    case 'Paternity Leave': remaining = balance?.paternityLeaveRemaining || 0; break;
-                    case 'Study Leave': remaining = balance?.studyLeaveRemaining || 0; break;
-                    case 'Extra Ordinary Leave': remaining = balance?.extraOrdinaryLeaveRemaining || 0; break;
-                    case 'Bereavement Leave': remaining = balance?.bereavementLeaveRemaining || 0; break;
-                    default: remaining = 0;
-                }
-                const isDisabled = remaining <= 0 && type !== leave.leaveType;
-                const selected = type === leave.leaveType ? 'selected' : '';
-                
-                return `<option value="${type}" ${selected} ${isDisabled ? 'disabled style="color: #9ca3af; background-color: #f3f4f6;"' : ''}>
-                            ${type} (${remaining} days left)
-                        </option>`;
-            }).join('');
-            
-            const modalHtml = `
-                <div class="p-6">
-                    <h3 class="font-bold text-xl mb-4 flex items-center gap-2">
-                        <i class="fas fa-edit text-primary-600"></i>
-                        Edit Leave Request
-                    </h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">Leave Type</label>
-                            <select id="editLeaveType" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                                ${leaveOptions}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">Duration Type</label>
-                            <div class="flex gap-3">
-                                <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
-                                    <input type="radio" name="editDuration" value="full" ${leave.durationType === 'full' ? 'checked' : ''}> Full Day
-                                </label>
-                                <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
-                                    <input type="radio" name="editDuration" value="half" ${leave.durationType === 'half' ? 'checked' : ''}> Half Day
-                                </label>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">Start Date</label>
-                            <input type="date" id="editStartDate" value="${leave.fromDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                        </div>
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">End Date</label>
-                            <input type="date" id="editEndDate" value="${leave.toDate}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                        </div>
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">Reason</label>
-                            <textarea id="editReason" rows="4" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">${Utils.escapeHtml(leave.reason)}</textarea>
-                        </div>
-                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                            <div class="flex items-center gap-2 text-yellow-700 text-sm">
-                                <i class="fas fa-info-circle"></i>
-                                <span>Current days: ${leave.days} day(s)</span>
-                            </div>
-                            <p class="text-xs text-yellow-600 mt-1">Changing dates will recalculate the number of days</p>
-                        </div>
-                        <div class="flex gap-3 pt-4">
-                            <button onclick="Leave.updateLeave(${leave.id})" 
-                                    class="flex-1 bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition">
-                                <i class="fas fa-save"></i> Save Changes
-                            </button>
-                            <button onclick="Utils.closeModal()" 
-                                    class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition">
-                                Cancel
-                            </button>
+            return `<option value="${type}" ${selected} ${isDisabled ? 'disabled style="color: #9ca3af; background-color: #f3f4f6;"' : ''}>
+                        ${type} (${remaining} days left)
+                    </option>`;
+        }).join('');
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        const modalHtml = `
+            <div class="p-6" style="max-height: 85vh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;">
+                <style>
+                    #modalBody > div::-webkit-scrollbar {
+                        display: none;
+                    }
+                </style>
+                <h3 class="font-bold text-xl mb-4 flex items-center gap-2">
+                    <i class="fas fa-edit text-primary-600"></i>
+                    Edit Leave Request
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Leave Type</label>
+                        <select id="editLeaveType" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                            ${leaveOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Duration Type</label>
+                        <div class="flex gap-3">
+                            <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="editDuration" value="full" ${leave.durationType === 'full' ? 'checked' : ''}> Full Day
+                            </label>
+                            <label class="flex items-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="editDuration" value="half" ${leave.durationType === 'half' ? 'checked' : ''}> Half Day
+                            </label>
                         </div>
                     </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Start Date</label>
+                        <input type="date" id="editStartDate" value="${fromDateFormatted}" min="${today}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">End Date</label>
+                        <input type="date" id="editEndDate" value="${toDateFormatted}" min="${today}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Reason</label>
+                        <textarea id="editReason" rows="3" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">${Utils.escapeHtml(leave.reason)}</textarea>
+                    </div>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <div class="flex items-center gap-2 text-yellow-700 text-sm">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Current days: ${leave.days} day(s)</span>
+                        </div>
+                        <p class="text-xs text-yellow-600 mt-1">Changing dates will recalculate the number of days</p>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button onclick="Leave.updateLeave(${leave.id})" 
+                                class="flex-1 bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                        <button onclick="Utils.closeModal()" 
+                                class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition">
+                            Cancel
+                        </button>
+                    </div>
                 </div>
-            `;
-            
-            Utils.openModal(modalHtml);
-            
-        } catch (error) {
-            console.error('Error loading leave for edit:', error);
-            Utils.showToast('Error loading leave details', 'err');
-        }
-    },
+            </div>
+        `;
+        
+        Utils.openModal(modalHtml);
+        
+    } catch (error) {
+        console.error('Error loading leave for edit:', error);
+        Utils.showToast('Error loading leave details', 'err');
+    }
+},
 
     async updateLeave(leaveId) {
         const leaveType = document.getElementById('editLeaveType').value;

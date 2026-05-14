@@ -88,12 +88,18 @@ const Utils = {
             modal = document.createElement('div');
             modal.id = 'globalModal';
             modal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-all';
-            modal.innerHTML = '<div id="modalBody" class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 transform scale-95 transition-all max-h-[90vh] overflow-auto"></div>';
+            modal.innerHTML = '<div id="modalBody" class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 transform scale-95 transition-all max-h-[90vh] overflow-hidden"></div>';
             document.body.appendChild(modal);
+            // Close modal when clicking outside
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) Utils.closeModal();
+            });
         }
         document.getElementById('modalBody').innerHTML = html;
         modal.classList.remove('opacity-0', 'pointer-events-none');
         modal.classList.add('opacity-100', 'pointer-events-auto');
+        // Prevent body scroll when modal is open
+        document.body.style.overflow = 'hidden';
     },
 
     closeModal() {
@@ -101,6 +107,8 @@ const Utils = {
         if (modal) {
             modal.classList.add('opacity-0', 'pointer-events-none');
             modal.classList.remove('opacity-100', 'pointer-events-auto');
+            // Restore body scroll
+            document.body.style.overflow = '';
         }
     },
 

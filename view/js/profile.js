@@ -61,90 +61,95 @@ const Profile = {
     },
 
     openEditModal() {
-        const u = App.currentUser;
-        if (!u) return;
-        
-        const currentPic = u.profilePic || '';
-        
-        const previewHtml = currentPic ? 
-            `<img id="modalPreviewImg" src="${currentPic}" class="w-28 h-28 rounded-full object-cover border-4 border-primary-200">` : 
-            `<div id="modalPreviewImg" class="w-28 h-28 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border-4 border-dashed">
-                <i class="fas fa-camera text-4xl"></i>
-            </div>`;
-        
-        const modalHtml = `
-            <div class="p-6">
-                <h3 class="font-bold text-xl mb-4">Edit Profile</h3>
-                
-                <!-- Profile Picture Section -->
-                <div class="flex flex-col items-center mb-6">
-                    <div class="relative cursor-pointer group" onclick="document.getElementById('modalPicInput').click()">
-                        <div id="modalPreviewContainer">${previewHtml}</div>
-                        <div class="absolute bottom-0 right-0 bg-primary-600 rounded-full p-1.5 text-white shadow-md">
-                            <i class="fas fa-camera text-xs"></i>
-                        </div>
+    const u = App.currentUser;
+    if (!u) return;
+    
+    const currentPic = u.profilePic || '';
+    
+    const previewHtml = currentPic ? 
+        `<img id="modalPreviewImg" src="${currentPic}" class="w-28 h-28 rounded-full object-cover border-4 border-primary-200">` : 
+        `<div id="modalPreviewImg" class="w-28 h-28 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border-4 border-dashed">
+            <i class="fas fa-camera text-4xl"></i>
+        </div>`;
+    
+    const modalHtml = `
+        <div class="p-6" style="max-height: 85vh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;">
+            <style>
+                #modalBody > div::-webkit-scrollbar {
+                    display: none;
+                }
+            </style>
+            <h3 class="font-bold text-xl mb-4">Edit Profile</h3>
+            
+            <!-- Profile Picture Section -->
+            <div class="flex flex-col items-center mb-6">
+                <div class="relative cursor-pointer group" onclick="document.getElementById('modalPicInput').click()">
+                    <div id="modalPreviewContainer">${previewHtml}</div>
+                    <div class="absolute bottom-0 right-0 bg-primary-600 rounded-full p-1.5 text-white shadow-md">
+                        <i class="fas fa-camera text-xs"></i>
                     </div>
-                    <input type="file" id="modalPicInput" accept="image/*" class="hidden" onchange="Profile.previewImage(event)">
-                    <p class="text-xs text-gray-400 mt-2">Click camera icon to change photo</p>
+                </div>
+                <input type="file" id="modalPicInput" accept="image/*" class="hidden" onchange="Profile.previewImage(event)">
+                <p class="text-xs text-gray-400 mt-2">Click camera icon to change photo</p>
+            </div>
+            
+            <!-- Form Fields -->
+            <div class="space-y-4">
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 block mb-1">Employee ID</label>
+                    <input type="text" value="${u.employeeId || u.id || 'N/A'}" disabled class="w-full border bg-gray-100 p-2.5 rounded-lg">
                 </div>
                 
-                <!-- Form Fields -->
-                <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">Employee ID</label>
-                        <input type="text" value="${u.employeeId || u.id || 'N/A'}" disabled class="w-full border bg-gray-100 p-2.5 rounded-lg">
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">First Name</label>
+                        <input id="editFirstName" value="${this.escapeHtml(u.firstName || '')}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
                     </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">First Name</label>
-                            <input id="editFirstName" value="${this.escapeHtml(u.firstName || '')}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                        </div>
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">Last Name</label>
-                            <input id="editLastName" value="${this.escapeHtml(u.lastName || '')}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                        </div>
-                    </div>
-                    
                     <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">Email</label>
-                        <input id="editEmail" value="${u.email || ''}" type="email" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                    </div>
-                    
-                    <div>
-                        <label class="text-sm font-semibold text-gray-700 block mb-1">Phone</label>
-                        <input id="editPhone" value="${u.phone || ''}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">Department</label>
-                            <select id="editDepartment" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 bg-white">
-                                <option value="">Loading departments...</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-sm font-semibold text-gray-700 block mb-1">Position</label>
-                            <input id="editPosition" value="${this.escapeHtml(u.position || '')}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
-                        </div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Last Name</label>
+                        <input id="editLastName" value="${this.escapeHtml(u.lastName || '')}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
                     </div>
                 </div>
                 
-                <!-- Action Buttons -->
-                <div class="flex gap-3 mt-6 pt-4 border-t">
-                    <button onclick="Profile.saveProfile()" class="flex-1 bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition">
-                        <i class="fas fa-save mr-2"></i> Save Changes
-                    </button>
-                    <button onclick="Utils.closeModal()" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition">
-                        Cancel
-                    </button>
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 block mb-1">Email</label>
+                    <input id="editEmail" value="${u.email || ''}" type="email" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                </div>
+                
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 block mb-1">Phone</label>
+                    <input id="editPhone" value="${u.phone || ''}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Department</label>
+                        <select id="editDepartment" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 bg-white">
+                            <option value="">Loading departments...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Position</label>
+                        <input id="editPosition" value="${this.escapeHtml(u.position || '')}" class="w-full border p-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200">
+                    </div>
                 </div>
             </div>
-        `;
-        
-        Utils.openModal(modalHtml);
-        this.loadDepartmentsForEdit(u.department);
-    },
+            
+            <!-- Action Buttons -->
+            <div class="flex gap-3 mt-6 pt-4 border-t">
+                <button onclick="Profile.saveProfile()" class="flex-1 bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition">
+                    <i class="fas fa-save mr-2"></i> Save Changes
+                </button>
+                <button onclick="Utils.closeModal()" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    
+    Utils.openModal(modalHtml);
+    this.loadDepartmentsForEdit(u.department);
+},
     
     escapeHtml(str) {
         if (!str) return '';
