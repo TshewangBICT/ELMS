@@ -162,7 +162,7 @@ const LoginPage = {
             <!-- Left Section - Copyright -->
             <div class="text-center lg:text-left order-3 lg:order-1">
                 <p class="text-white/70 text-xs tracking-wide">
-                    <i class="far fa-copyright mr-1"></i> 2025 Employee Leave Management System. All rights reserved.
+                    <i class="far fa-copyright mr-1"></i> 2026 Employee Leave Management System. All rights reserved.
                 </p>
             </div>
             

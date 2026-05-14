@@ -31,7 +31,7 @@ const EmployeeManager = {
             const html = `
                 <div class="bg-white rounded-2xl shadow-sm p-5 animate-fade-in">
                     <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-                        <h3 class="font-bold text-lg">All Employees <span id="employeeCount" class="text-primary-600">(${this.allEmployees.length})</span></h3>
+                        <h3 class="font-bold text-lg">Employee Directory <span id="employeeCount" class="text-primary-600">(${this.allEmployees.length})</span></h3>
                         <button onclick="EmployeeManager.openAddModal()" class="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-primary-700 transition-all shadow-sm">
                             <i class="fas fa-user-plus"></i> Add Employee
                         </button>

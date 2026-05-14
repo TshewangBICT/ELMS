@@ -748,7 +748,7 @@ const MainLayout = {
             <!-- Left Section - Copyright -->
             <div class="text-center lg:text-left order-3 lg:order-1">
                 <p class="text-white/70 text-xs tracking-wide">
-                    <i class="far fa-copyright mr-1"></i> 2025 Employee Leave Management System. All rights reserved.
+                    <i class="far fa-copyright mr-1"></i> 2026 Employee Leave Management System. All rights reserved.
                 </p>
             </div>
             
@@ -833,8 +833,8 @@ const MainLayout = {
         { id: 'myLeaves', icon: 'fa-calendar-check', label: 'My Leave History' },
         { id: 'leaveBalance', icon: 'fa-chart-pie', label: 'Leave Balance' },
         { id: 'colleaguesOnLeave', icon: 'fa-people-arrows', label: "Today's Leave" },
-        { divider: true, title: 'MANAGEMENT' },
-        { id: 'manageEmployees', icon: 'fa-users-gear', label: 'All Employees' },
+        { divider: true, title: 'Admin Portal' },
+        { id: 'manageEmployees', icon: 'fa-users-gear', label: 'Employee Directory' },
         { id: 'manageDepartments', icon: 'fa-building', label: 'Departments' },
         { id: 'leaveRequests', icon: 'fa-clipboard-list', label: 'Leave Approvals' },
         { divider: true, title: 'NOTIFICATIONS' },
@@ -910,7 +910,7 @@ const MainLayout = {
     updatePageTitle(page) {
         const titles = {
             dashboard: 'Dashboard',
-            manageEmployees: 'All Employees',
+            manageEmployees: 'Employee Directory',
             manageDepartments: 'Manage Departments',
             profile: 'My Profile',
             changePassword: 'Change Password',
