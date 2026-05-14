@@ -219,35 +219,59 @@ const LoginPage = {
     },
 
     async handleLogin() {
-        const email = document.getElementById('loginEmail').value.trim();
-        const password = document.getElementById('loginPass').value;
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPass').value;
+    
+    if (!email || !password) {
+        Utils.showToast('Please enter email and password', 'warn');
+        return;
+    }
+    
+    try {
+        const response = await fetch('http://localhost:8080/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ email, password })
+        });
         
-        if (!email || !password) {
-            Utils.showToast('Please enter email and password', 'warn');
-            return;
-        }
+        const result = await response.json();
         
-        try {
-            const response = await fetch('http://localhost:8080/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ email, password })
-            });
+        if (result.success && result.data) {
+            // Fetch full employee data including profile picture
+            const employeeId = result.data.employeeId;
+            let profilePic = null;
             
-            const result = await response.json();
-            
-            if (result.success && result.data) {
-                App.currentUser = result.data;
-                Utils.showToast(`Welcome ${result.data.firstName}!`, 'ok');
-                App.loadApp();
-            } else {
-                Utils.showToast(result.error || 'Login failed', 'err');
+            try {
+                const empResponse = await fetch(`http://localhost:8080/employee/${employeeId}`, {
+                    credentials: 'include'
+                });
+                const empResult = await empResponse.json();
+                console.log('Full employee data after login:', empResult);
+                if (empResult.success && empResult.data) {
+                    profilePic = empResult.data.profilePic || empResult.data.profile_pic;
+                }
+            } catch (err) {
+                console.error('Error fetching profile pic:', err);
             }
-        } catch (error) {
-            Utils.showToast('Login failed: ' + error.message, 'err');
+            
+            // Set the user with profile picture
+            App.currentUser = {
+                ...result.data,
+                profilePic: profilePic || result.data.profilePic || null
+            };
+            
+            console.log('User after login with profile pic:', App.currentUser);
+            
+            Utils.showToast(`Welcome ${result.data.firstName}!`, 'ok');
+            App.loadApp();
+        } else {
+            Utils.showToast(result.error || 'Login failed', 'err');
         }
-    },
+    } catch (error) {
+        Utils.showToast('Login failed: ' + error.message, 'err');
+    }
+},
 
     async handleRegister() {
         const firstName = document.getElementById('regFname').value.trim();

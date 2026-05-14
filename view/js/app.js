@@ -229,6 +229,7 @@ const App = {
         console.log('Auth check result:', checkResult);
         
         if (checkResult.authenticated) {
+            // Fetch profile data properly
             const profileResponse = await fetch('http://localhost:8080/auth/profile', {
                 credentials: 'include'
             });
@@ -238,7 +239,25 @@ const App = {
             if (profileResult.success && profileResult.data) {
                 const userData = profileResult.data;
                 
-                // CRITICAL: Make sure profilePic is properly set
+                // IMPORTANT: Fetch the complete employee data to get profile picture
+                // The /auth/profile might not return profilePic, so we fetch from /employee endpoint
+                let profilePic = null;
+                try {
+                    const employeeId = userData.employeeId || userData.employee_id;
+                    if (employeeId) {
+                        const empResponse = await fetch(`http://localhost:8080/employee/${employeeId}`, {
+                            credentials: 'include'
+                        });
+                        const empResult = await empResponse.json();
+                        console.log('Full employee data:', empResult);
+                        if (empResult.success && empResult.data) {
+                            profilePic = empResult.data.profilePic || empResult.data.profile_pic || null;
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error fetching full employee data:', err);
+                }
+                
                 this.currentUser = {
                     employeeId: userData.employeeId || userData.employee_id,
                     firstName: userData.firstName || userData.first_name,
@@ -251,7 +270,7 @@ const App = {
                     role: userData.role,
                     status: userData.status,
                     joinDate: userData.joinDate || userData.join_date,
-                    profilePic: userData.profilePic || userData.profile_pic || null,
+                    profilePic: profilePic || userData.profilePic || userData.profile_pic || null,
                     createdAt: userData.createdAt || userData.created_at,
                     updatedAt: userData.updatedAt || userData.updated_at
                 };
@@ -800,16 +819,17 @@ const MainLayout = {
         return;
     }
 
-    console.log('Updating sidebar profile with user:', u);
-    console.log('Profile pic URL:', u.profilePic);
-
     const profilePicUrl = u.profilePic || null;
 
-    const avatarHtml = profilePicUrl ? 
-        `<img src="${profilePicUrl}" class="w-12 h-12 rounded-xl object-cover border-2 border-primary-200" onerror="this.onerror=null; this.parentElement.innerHTML=this.parentElement.innerHTML.replace(this.outerHTML, '<div class=\'w-12 h-12 rounded-xl bg-gradient-to-r from-primary-500 to-primary-700 text-white flex items-center justify-center text-lg font-bold border-2 border-primary-200\'>${(u.firstName?.[0] || '')}${(u.lastName?.[0] || '')}</div>');">` : 
-        `<div class="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-500 to-primary-700 text-white flex items-center justify-center text-lg font-bold border-2 border-primary-200">
+    let avatarHtml = '';
+    if (profilePicUrl && profilePicUrl !== 'null' && profilePicUrl !== 'undefined') {
+        avatarHtml = `<img src="${profilePicUrl}" class="w-12 h-12 rounded-xl object-cover border-2 border-primary-200" 
+                         onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<div class=\'w-12 h-12 rounded-xl bg-gradient-to-r from-primary-500 to-primary-700 text-white flex items-center justify-center text-lg font-bold border-2 border-primary-200\'>${(u.firstName?.[0] || '')}${(u.lastName?.[0] || '')}</div>';">`;
+    } else {
+        avatarHtml = `<div class="w-12 h-12 rounded-xl bg-gradient-to-r from-primary-500 to-primary-700 text-white flex items-center justify-center text-lg font-bold border-2 border-primary-200">
             ${(u.firstName?.[0] || '')}${(u.lastName?.[0] || '')}
         </div>`;
+    }
 
     const profileDiv = document.getElementById('sidebarTopProfile');
     if (profileDiv) {
@@ -823,7 +843,7 @@ const MainLayout = {
                 </div>
             </div>
         `;
-        console.log('Sidebar profile updated');
+        console.log('Sidebar profile updated with avatar');
     } else {
         console.log('Sidebar profile div not found');
     }
