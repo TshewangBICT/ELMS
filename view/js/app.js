@@ -833,6 +833,8 @@ const MainLayout = {
         { id: 'myLeaves', icon: 'fa-calendar-check', label: 'My Leave History' },
         { id: 'leaveBalance', icon: 'fa-chart-pie', label: 'Leave Balance' },
         { id: 'colleaguesOnLeave', icon: 'fa-people-arrows', label: "Today's Leave" },
+        { divider: true, title: 'DIRECTORY' },
+        { id: 'manageEmployees', icon: 'fa-users', label: 'Employee Directory' },
         { divider: true, title: 'NOTIFICATIONS' },
         { id: 'notifications', icon: 'fa-bell', label: 'Notifications' },
         { divider: true, title: 'ACCOUNT SETTINGS' },

@@ -31,7 +31,7 @@ func InitializeRoutes() {
 	router.HandleFunc("/employee/{eid}/profile-pic", middleware.AuthMiddleware(controller.UpdateProfilePic)).Methods("PUT")
 	router.HandleFunc("/employee/{eid}/status", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.UpdateEmployeeStatus))).Methods("PUT")
 	router.HandleFunc("/employee/{eid}", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.DeleteEmployee))).Methods("DELETE")
-	router.HandleFunc("/employees/all", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetAllEmployees))).Methods("GET")
+	router.HandleFunc("/employees/all", middleware.AuthMiddleware(controller.GetAllEmployees)).Methods("GET")
 	router.HandleFunc("/employees/filter", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetFilteredEmployees))).Methods("GET")
 
 	// TEMPORARY - Direct access without auth for testing

@@ -6,11 +6,7 @@ const EmployeeManager = {
     allEmployees: [],
 
     async render(user) {
-        if (user.role !== 'admin') {
-            Utils.showToast('Access denied. Admin only.', 'err');
-            App.navigateTo('dashboard');
-            return;
-        }
+        const isAdmin = user.role === 'admin';
         
         document.getElementById('mainContent').innerHTML = `
             <div class="flex justify-center items-center h-64">
@@ -22,19 +18,35 @@ const EmployeeManager = {
         `;
         
         try {
-            const departmentsResult = await API.getAllDepartments();
-            const departments = departmentsResult?.data || [];
+            // Fetch departments for filter dropdown
+            const departmentsResult = await API.getDepartmentNames();
+            console.log('Departments API response:', departmentsResult);
+            
+            let departments = [];
+            if (departmentsResult?.data) {
+                departments = departmentsResult.data;
+            } else if (Array.isArray(departmentsResult)) {
+                departments = departmentsResult;
+            }
             
             const employeesResult = await API.getAllEmployees();
             this.allEmployees = employeesResult?.data || [];
             
+            // Get unique departments from employees as fallback
+            const uniqueDepts = [...new Set(this.allEmployees.map(e => e.department).filter(d => d))];
+            
             const html = `
                 <div class="bg-white rounded-2xl shadow-sm p-5 animate-fade-in">
                     <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-                        <h3 class="font-bold text-lg">Employee Directory <span id="employeeCount" class="text-primary-600">(${this.allEmployees.length})</span></h3>
-                        <button onclick="EmployeeManager.openAddModal()" class="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-primary-700 transition-all shadow-sm">
-                            <i class="fas fa-user-plus"></i> Add Employee
-                        </button>
+                        <div>
+                            <h3 class="font-bold text-lg">Employee Directory <span id="employeeCount" class="text-primary-600">(${this.allEmployees.length})</span></h3>
+                            <p class="text-xs text-gray-500 mt-1">${isAdmin ? 'Full access - Manage employees' : 'View only - Employee information'}</p>
+                        </div>
+                        ${isAdmin ? `
+                            <button onclick="EmployeeManager.openAddModal()" class="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-primary-700 transition-all shadow-sm">
+                                <i class="fas fa-user-plus"></i> Add Employee
+                            </button>
+                        ` : ''}
                     </div>
                     <div class="flex flex-wrap gap-3 mb-4">
                         <div class="search-container relative flex-1 max-w-md">
@@ -45,7 +57,10 @@ const EmployeeManager = {
                         <div>
                             <select id="deptFilterSelect" class="px-4 py-2 border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-200">
                                 <option value="all">All Departments</option>
-                                ${departments.map(d => `<option value="${d.name}">${Utils.escapeHtml(d.name)}</option>`).join('')}
+                                ${departments.length > 0 ? 
+                                    departments.map(d => `<option value="${d.name || d}">${Utils.escapeHtml(d.name || d)}</option>`).join('') :
+                                    uniqueDepts.map(d => `<option value="${d}">${Utils.escapeHtml(d)}</option>`).join('')
+                                }
                             </select>
                         </div>
                         <button id="clearFiltersBtn" class="px-3 py-2 bg-gray-100 rounded-xl text-sm hover:bg-gray-200 transition-all">
@@ -58,7 +73,7 @@ const EmployeeManager = {
             
             document.getElementById('mainContent').innerHTML = html;
             this.attachEvents();
-            this.refreshTable();
+            this.refreshTable(isAdmin);
             
         } catch (error) {
             console.error('Error loading employees:', error);
@@ -86,7 +101,8 @@ const EmployeeManager = {
                 if (this.searchTimeout) clearTimeout(this.searchTimeout);
                 this.searchTimeout = setTimeout(() => {
                     this.employeeSearchQuery = e.target.value;
-                    this.refreshTable();
+                    const isAdmin = App.currentUser?.role === 'admin';
+                    this.refreshTable(isAdmin);
                 }, 350);
             });
         }
@@ -96,7 +112,8 @@ const EmployeeManager = {
                 if (searchInput) searchInput.value = '';
                 this.employeeSearchQuery = '';
                 if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
-                this.refreshTable();
+                const isAdmin = App.currentUser?.role === 'admin';
+                this.refreshTable(isAdmin);
             });
         }
         
@@ -104,7 +121,8 @@ const EmployeeManager = {
             deptSelect.value = this.currentDepartmentFilter;
             deptSelect.onchange = () => {
                 this.currentDepartmentFilter = deptSelect.value;
-                this.refreshTable();
+                const isAdmin = App.currentUser?.role === 'admin';
+                this.refreshTable(isAdmin);
             };
         }
         
@@ -115,12 +133,13 @@ const EmployeeManager = {
                 if (searchInput) searchInput.value = '';
                 if (deptSelect) deptSelect.value = 'all';
                 if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
-                this.refreshTable();
+                const isAdmin = App.currentUser?.role === 'admin';
+                this.refreshTable(isAdmin);
             };
         }
     },
 
-    refreshTable() {
+    refreshTable(isAdmin = false) {
         let filteredEmps = [...this.allEmployees];
         const searchTerm = this.employeeSearchQuery.trim().toLowerCase();
         
@@ -144,46 +163,65 @@ const EmployeeManager = {
         
         let empRows = '';
         if (filteredEmps.length === 0) {
-            empRows = '<tr><td colspan="7" class="text-center p-8 text-gray-400"><i class="fas fa-search text-2xl mb-2 block"></i>No employees match your search criteria</td></tr>';
+            const colSpan = isAdmin ? 5 : 4;
+            empRows = `<tr><td colspan="${colSpan}" class="text-center p-8 text-gray-400"><i class="fas fa-search text-2xl mb-2 block"></i>No employees match your search criteria</td></tr>`;
         } else {
             filteredEmps.forEach(emp => {
                 const roleBadge = emp.role === 'admin' 
                     ? '<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Admin</span>' 
                     : '';
                 
-                empRows += `
-                    <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
-                        <td class="p-3">
-                            <div class="font-medium">${Utils.escapeHtml(emp.firstName || '')} ${Utils.escapeHtml(emp.lastName || '')} ${roleBadge}</div>
-                            <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
-                         </td>
-                        <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
-                        <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
-                        <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
-                        <td class="p-3">${Utils.statusBadge(emp.status)}</td>
-                        <td class="p-3 flex gap-2">
-                            <button onclick="EmployeeManager.openEditModal('${emp.employeeId}')" class="text-blue-500 hover:text-blue-700 transition" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="EmployeeManager.toggleRole('${emp.employeeId}', '${emp.role}')" class="text-purple-500 hover:text-purple-700 transition" title="${emp.role === 'admin' ? 'Remove Admin' : 'Make Admin'}">
-                                <i class="fas ${emp.role === 'admin' ? 'fa-user-minus' : 'fa-user-shield'}"></i>
-                            </button>
-                            <button onclick="EmployeeManager.toggleStatus('${emp.employeeId}')" class="text-amber-500 hover:text-amber-700 transition" title="${emp.status === 'active' ? 'Deactivate' : 'Activate'}">
-                                <i class="fas ${emp.status === 'active' ? 'fa-ban' : 'fa-check-circle'}"></i>
-                            </button>
-                            <button onclick="EmployeeManager.deleteEmployee('${emp.employeeId}')" class="text-red-500 hover:text-red-700 transition" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
+                // For non-admin users: show ONLY 4 columns (no Status, no Actions)
+                if (!isAdmin) {
+                    empRows += `
+                        <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
+                            <td class="p-3">
+                                <div class="font-medium">${Utils.escapeHtml(emp.firstName || '')} ${Utils.escapeHtml(emp.lastName || '')} ${roleBadge}</div>
+                                <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
+                               </td>
+                            <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
+                        </tr>
+                    `;
+                } else {
+                    // For admin users: show 5 columns including Status and Actions
+                    empRows += `
+                        <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
+                            <td class="p-3">
+                                <div class="font-medium">${Utils.escapeHtml(emp.firstName || '')} ${Utils.escapeHtml(emp.lastName || '')} ${roleBadge}</div>
+                                <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
+                               </td>
+                            <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
+                            <td class="p-3">${Utils.statusBadge(emp.status)}</td>
+                            <td class="p-3 flex gap-2">
+                                <button onclick="EmployeeManager.openEditModal('${emp.employeeId}')" class="text-blue-500 hover:text-blue-700 transition" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="EmployeeManager.toggleRole('${emp.employeeId}', '${emp.role}')" class="text-purple-500 hover:text-purple-700 transition" title="${emp.role === 'admin' ? 'Remove Admin' : 'Make Admin'}">
+                                    <i class="fas ${emp.role === 'admin' ? 'fa-user-minus' : 'fa-user-shield'}"></i>
+                                </button>
+                                <button onclick="EmployeeManager.toggleStatus('${emp.employeeId}')" class="text-amber-500 hover:text-amber-700 transition" title="${emp.status === 'active' ? 'Deactivate' : 'Activate'}">
+                                    <i class="fas ${emp.status === 'active' ? 'fa-ban' : 'fa-check-circle'}"></i>
+                                </button>
+                                <button onclick="EmployeeManager.deleteEmployee('${emp.employeeId}')" class="text-red-500 hover:text-red-700 transition" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }
             });
         }
         
         const container = document.getElementById('employeeTableContainer');
         if (container) {
-            container.innerHTML = `
-                <table class="w-full text-sm">
+            // Different table headers for admin vs regular users
+            let tableHeaders = '';
+            if (isAdmin) {
+                tableHeaders = `
                     <thead class="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th class="p-3 text-left">Employee</th>
@@ -194,23 +232,46 @@ const EmployeeManager = {
                             <th class="p-3 text-left">Actions</th>
                         </tr>
                     </thead>
+                `;
+            } else {
+                tableHeaders = `
+                    <thead class="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                            <th class="p-3 text-left">Employee</th>
+                            <th class="p-3 text-left">Email</th>
+                            <th class="p-3 text-left">Department</th>
+                            <th class="p-3 text-left">Position</th>
+                        </tr>
+                    </thead>
+                `;
+            }
+            
+            container.innerHTML = `
+                <table class="w-full text-sm">
+                    ${tableHeaders}
                     <tbody>${empRows}</tbody>
                 </table>
             `;
         }
     },
 
+    // All other functions remain the same...
     async openAddModal() {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         let departments = [];
         try {
-            const result = await API.getAllDepartments();
+            const result = await API.getDepartmentNames();
             departments = result?.data || [];
         } catch (error) {
             console.error('Error fetching departments:', error);
         }
         
         const deptOptions = departments.map(dept => 
-            `<option value="${Utils.escapeHtml(dept.name)}">${Utils.escapeHtml(dept.name)}</option>`
+            `<option value="${Utils.escapeHtml(dept.name || dept)}">${Utils.escapeHtml(dept.name || dept)}</option>`
         ).join('');
         
         const modalHtml = `
@@ -239,6 +300,11 @@ const EmployeeManager = {
     },
 
     async addEmployee() {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const empData = {
             employeeId: document.getElementById('newEmpId').value.trim(),
             firstName: document.getElementById('newFn').value.trim(),
@@ -274,6 +340,11 @@ const EmployeeManager = {
     },
 
     async openEditModal(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         try {
             const result = await API.getEmployee(employeeId);
             const emp = result?.data;
@@ -285,14 +356,14 @@ const EmployeeManager = {
             
             let departments = [];
             try {
-                const deptResult = await API.getAllDepartments();
+                const deptResult = await API.getDepartmentNames();
                 departments = deptResult?.data || [];
             } catch (error) {
                 console.error('Error fetching departments:', error);
             }
             
             const deptOptions = departments.map(dept => 
-                `<option value="${Utils.escapeHtml(dept.name)}" ${emp.department === dept.name ? 'selected' : ''}>${Utils.escapeHtml(dept.name)}</option>`
+                `<option value="${Utils.escapeHtml(dept.name || dept)}" ${emp.department === (dept.name || dept) ? 'selected' : ''}>${Utils.escapeHtml(dept.name || dept)}</option>`
             ).join('');
             
             const modalHtml = `
@@ -309,7 +380,6 @@ const EmployeeManager = {
                         </select>
                         <input id="editPos" value="${emp.position || ''}" placeholder="Position" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         
-                        <!-- Admin Role Toggle -->
                         <div class="border-t pt-3 mt-2">
                             <label class="flex items-center gap-3 cursor-pointer">
                                 <input type="checkbox" id="editIsAdmin" ${emp.role === 'admin' ? 'checked' : ''} class="w-4 h-4 text-primary-600 rounded focus:ring-primary-500">
@@ -334,6 +404,11 @@ const EmployeeManager = {
     },
 
     async saveEmployee(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const isAdmin = document.getElementById('editIsAdmin')?.checked || false;
         
         const empData = {
@@ -364,6 +439,11 @@ const EmployeeManager = {
     },
 
     async toggleRole(employeeId, currentRole) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const newRole = currentRole === 'admin' ? 'user' : 'admin';
         const action = newRole === 'admin' ? 'make admin' : 'remove admin privileges';
         
@@ -381,6 +461,11 @@ const EmployeeManager = {
     },
 
     async toggleStatus(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const emp = this.allEmployees.find(e => e.employeeId === employeeId);
         if (!emp) return;
         
@@ -406,6 +491,11 @@ const EmployeeManager = {
     },
 
     async deleteEmployee(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const emp = this.allEmployees.find(e => e.employeeId === employeeId);
         if (!emp) return;
         
