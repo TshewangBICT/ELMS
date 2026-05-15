@@ -40,7 +40,6 @@ const EmployeeManager = {
                             <p class="text-xs text-gray-500 mt-1">${isAdmin ? 'Full access - Manage employees' : 'View only - Employee information'}</p>
                         </div>
                         ${isAdmin ? `
-<<<<<<< HEAD
                             <div class="flex gap-2">
                                 <button onclick="EmployeeManager.openAddModal()" class="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-primary-700 transition-all shadow-sm flex items-center gap-2">
                                     <i class="fas fa-user-plus"></i> Add Employee
@@ -49,11 +48,6 @@ const EmployeeManager = {
                                     <i class="fas fa-upload"></i> Bulk Upload
                                 </button>
                             </div>
-=======
-                            <button onclick="EmployeeManager.openAddModal()" class="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-primary-700 transition-all shadow-sm">
-                                <i class="fas fa-user-plus"></i> Add Employee
-                            </button>
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
                         ` : ''}
                     </div>
                     <div class="flex flex-wrap gap-3 mb-4">
@@ -358,11 +352,7 @@ async bulkUpload() {
         
         let empRows = '';
         if (filteredEmps.length === 0) {
-<<<<<<< HEAD
             const colSpan = isAdmin ? 6 : 5;
-=======
-            const colSpan = isAdmin ? 5 : 4;
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
             empRows = `<tr><td colspan="${colSpan}" class="text-center p-8 text-gray-400"><i class="fas fa-search text-2xl mb-2 block"></i>No employees match your search criteria</td></tr>`;
         } else {
             filteredEmps.forEach(emp => {
@@ -370,15 +360,10 @@ async bulkUpload() {
                     ? '<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Admin</span>' 
                     : '';
                 
-<<<<<<< HEAD
                 const phoneNumber = emp.phone || '-';
                 
                 if (!isAdmin) {
                     // Regular users: Show 5 columns (Employee, Email, Phone, Department, Position)
-=======
-                // For non-admin users: show ONLY 4 columns (no Status, no Actions)
-                if (!isAdmin) {
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
                     empRows += `
                         <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
                             <td class="p-3">
@@ -386,20 +371,13 @@ async bulkUpload() {
                                 <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
                                </td>
                             <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
-<<<<<<< HEAD
                             <td class="p-3 text-sm">${Utils.escapeHtml(phoneNumber)}</td>
-=======
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
                             <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
                             <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
                         </tr>
                     `;
                 } else {
-<<<<<<< HEAD
                     // Admin users: Show 7 columns (Employee, Email, Phone, Department, Position, Status, Actions)
-=======
-                    // For admin users: show 5 columns including Status and Actions
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
                     empRows += `
                         <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
                             <td class="p-3">
@@ -407,10 +385,7 @@ async bulkUpload() {
                                 <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
                                </td>
                             <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
-<<<<<<< HEAD
                             <td class="p-3 text-sm">${Utils.escapeHtml(phoneNumber)}</td>
-=======
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
                             <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
                             <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
                             <td class="p-3">${Utils.statusBadge(emp.status)}</td>
@@ -428,11 +403,7 @@ async bulkUpload() {
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </td>
-<<<<<<< HEAD
                         <tr>
-=======
-                        </tr>
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
                     `;
                 }
             });
@@ -440,10 +411,6 @@ async bulkUpload() {
         
         const container = document.getElementById('employeeTableContainer');
         if (container) {
-<<<<<<< HEAD
-=======
-            // Different table headers for admin vs regular users
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
             let tableHeaders = '';
             if (isAdmin) {
                 tableHeaders = `
@@ -465,10 +432,7 @@ async bulkUpload() {
                         <tr>
                             <th class="p-3 text-left">Employee</th>
                             <th class="p-3 text-left">Email</th>
-<<<<<<< HEAD
                             <th class="p-3 text-left">Phone</th>
-=======
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
                             <th class="p-3 text-left">Department</th>
                             <th class="p-3 text-left">Position</th>
                         </tr>
@@ -485,11 +449,7 @@ async bulkUpload() {
         }
     },
 
-<<<<<<< HEAD
     // Add Employee Modal
-=======
-    // All other functions remain the same...
->>>>>>> 25df70d17982de3d3f21b2230e9ccce2fcaba527
     async openAddModal() {
         if (App.currentUser?.role !== 'admin') {
             Utils.showToast('Access denied. Admin only.', 'err');
@@ -498,14 +458,14 @@ async bulkUpload() {
         
         let departments = [];
         try {
-            const result = await API.getDepartmentNames();
+            const result = await API.getAllDepartments();
             departments = result?.data || [];
         } catch (error) {
             console.error('Error fetching departments:', error);
         }
         
         const deptOptions = departments.map(dept => 
-            `<option value="${Utils.escapeHtml(dept.name || dept)}">${Utils.escapeHtml(dept.name || dept)}</option>`
+            `<option value="${Utils.escapeHtml(dept.name)}">${Utils.escapeHtml(dept.name)}</option>`
         ).join('');
         
         const modalHtml = `
@@ -590,14 +550,14 @@ async bulkUpload() {
             
             let departments = [];
             try {
-                const deptResult = await API.getDepartmentNames();
+                const deptResult = await API.getAllDepartments();
                 departments = deptResult?.data || [];
             } catch (error) {
                 console.error('Error fetching departments:', error);
             }
             
             const deptOptions = departments.map(dept => 
-                `<option value="${Utils.escapeHtml(dept.name || dept)}" ${emp.department === (dept.name || dept) ? 'selected' : ''}>${Utils.escapeHtml(dept.name || dept)}</option>`
+                `<option value="${Utils.escapeHtml(dept.name)}" ${emp.department === dept.name ? 'selected' : ''}>${Utils.escapeHtml(dept.name)}</option>`
             ).join('');
             
             const modalHtml = `
