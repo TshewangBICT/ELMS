@@ -24,29 +24,26 @@ func InitializeRoutes() {
 	router.HandleFunc("/auth/profile", middleware.AuthMiddleware(controller.GetProfile)).Methods("GET")
 	router.HandleFunc("/auth/change-password", middleware.AuthMiddleware(controller.ChangePassword)).Methods("POST")
 
-	// TEMPORARY - Direct access without auth for testing
-	// router.HandleFunc("/auth/profile", controller.GetProfile).Methods("GET")
-	// router.HandleFunc("/auth/change-password", controller.ChangePassword).Methods("POST")
-
 	// Employee routes
-	// router.HandleFunc("/employee/add", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.AddEmployee))).Methods("POST")
-	// router.HandleFunc("/employee/{eid}", middleware.AuthMiddleware(controller.GetEmployee)).Methods("GET")
-	// router.HandleFunc("/employee/{eid}", middleware.AuthMiddleware(controller.UpdateEmployee)).Methods("PUT")
-	// router.HandleFunc("/employee/{eid}/profile-pic", middleware.AuthMiddleware(controller.UpdateProfilePic)).Methods("PUT")
-	// router.HandleFunc("/employee/{eid}/status", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.UpdateEmployeeStatus))).Methods("PUT")
-	// router.HandleFunc("/employee/{eid}", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.DeleteEmployee))).Methods("DELETE")
-	// router.HandleFunc("/employees/all", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetAllEmployees))).Methods("GET")
-	// router.HandleFunc("/employees/filter", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetFilteredEmployees))).Methods("GET")
+	router.HandleFunc("/employee/add", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.AddEmployee))).Methods("POST")
+	router.HandleFunc("/employee/{eid}", middleware.AuthMiddleware(controller.GetEmployee)).Methods("GET")
+	router.HandleFunc("/employee/{eid}", middleware.AuthMiddleware(controller.UpdateEmployee)).Methods("PUT")
+	router.HandleFunc("/employee/{eid}/profile-pic", middleware.AuthMiddleware(controller.UpdateProfilePic)).Methods("PUT")
+	router.HandleFunc("/employee/{eid}/status", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.UpdateEmployeeStatus))).Methods("PUT")
+	router.HandleFunc("/employee/{eid}", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.DeleteEmployee))).Methods("DELETE")
+	router.HandleFunc("/employees/all", middleware.AuthMiddleware(controller.GetAllEmployees)).Methods("GET")
+	router.HandleFunc("/employees/filter", middleware.AuthMiddleware(controller.GetFilteredEmployees)).Methods("GET")
+	router.HandleFunc("/employees/bulk-upload", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.BulkUploadEmployees))).Methods("POST")
 
 	// TEMPORARY - Direct access without auth for testing
-	router.HandleFunc("/employee/add", controller.AddEmployee).Methods("POST")
-	router.HandleFunc("/employee/{eid}", controller.GetEmployee).Methods("GET")
-	router.HandleFunc("/employee/{eid}", controller.UpdateEmployee).Methods("PUT")
-	router.HandleFunc("/employee/{eid}/profile-pic", controller.UpdateProfilePic).Methods("PUT")
-	router.HandleFunc("/employee/{eid}/status", controller.UpdateEmployeeStatus).Methods("PUT")
-	router.HandleFunc("/employee/{eid}", controller.DeleteEmployee).Methods("DELETE")
-	router.HandleFunc("/employees/all", controller.GetAllEmployees).Methods("GET")
-	router.HandleFunc("/employees/filter", controller.GetFilteredEmployees).Methods("GET")
+	// router.HandleFunc("/employee/add", controller.AddEmployee).Methods("POST")
+	// router.HandleFunc("/employee/{eid}", controller.GetEmployee).Methods("GET")
+	// router.HandleFunc("/employee/{eid}", controller.UpdateEmployee).Methods("PUT")
+	// router.HandleFunc("/employee/{eid}/profile-pic", controller.UpdateProfilePic).Methods("PUT")
+	// router.HandleFunc("/employee/{eid}/status", controller.UpdateEmployeeStatus).Methods("PUT")
+	// router.HandleFunc("/employee/{eid}", controller.DeleteEmployee).Methods("DELETE")
+	// router.HandleFunc("/employees/all", controller.GetAllEmployees).Methods("GET")
+	// router.HandleFunc("/employees/filter", controller.GetFilteredEmployees).Methods("GET")
 
 	// Department routes - COMMENT OUT middleware
 	router.HandleFunc("/department/add", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.AddDepartment))).Methods("POST")
@@ -69,7 +66,6 @@ func InitializeRoutes() {
 	// Leave routes - Employee and Admin
 	router.HandleFunc("/leave/apply", middleware.AuthMiddleware(controller.ApplyLeave)).Methods("POST")
 	router.HandleFunc("/leave/my-leaves", middleware.AuthMiddleware(controller.GetMyLeaves)).Methods("GET")
-	// router.HandleFunc("/leave/my-pending", middleware.AuthMiddleware(controller.GetMyPendingLeaves)).Methods("GET")
 	router.HandleFunc("/leave/balance", middleware.AuthMiddleware(controller.GetLeaveBalance)).Methods("GET")
 	router.HandleFunc("/leave/colleagues-on-leave", middleware.AuthMiddleware(controller.GetColleaguesOnLeave)).Methods("GET")
 	router.HandleFunc("/leave/{id}/cancel", middleware.AuthMiddleware(controller.CancelLeave)).Methods("DELETE")
@@ -79,10 +75,6 @@ func InitializeRoutes() {
 	router.HandleFunc("/leave/all", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetAllLeaves))).Methods("GET")
 	router.HandleFunc("/leave/pending", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetPendingLeaves))).Methods("GET")
 	router.HandleFunc("/leave/{id}/approve", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.ApproveLeave))).Methods("PUT")
-
-	// Admin leave balance management routes (if you have these)
-	// router.HandleFunc("/admin/leave-balances", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.GetAllLeaveBalances))).Methods("GET")
-	// router.HandleFunc("/admin/leave-balances/{employeeId}", middleware.AuthMiddleware(middleware.AdminMiddleware(controller.UpdateLeaveBalance))).Methods("PUT")
 
 	// Leave routes
 	// router.HandleFunc("/leave/apply", (controller.ApplyLeave)).Methods("POST")

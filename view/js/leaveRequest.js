@@ -117,13 +117,6 @@ const LeaveRequests = {
     async approve(leaveId) {
         console.log('Approving leave:', leaveId);
         
-        // Double-check if this is self-approval
-        const leaveRow = event?.target?.closest('tr');
-        if (leaveRow && leaveRow.classList.contains('bg-amber-50')) {
-            Utils.showToast('You cannot approve your own leave request', 'warn');
-            return;
-        }
-        
         try {
             const result = await API.approveLeave(leaveId, 'approved');
             console.log('Approve response:', result);
@@ -144,21 +137,15 @@ const LeaveRequests = {
     async reject(leaveId) {
         console.log('Rejecting leave:', leaveId);
         
-        // Double-check if this is self-rejection
-        const leaveRow = event?.target?.closest('tr');
-        if (leaveRow && leaveRow.classList.contains('bg-amber-50')) {
-            Utils.showToast('You cannot reject your own leave request', 'warn');
-            return;
-        }
-        
         if (!confirm('Are you sure you want to reject this leave request?')) return;
         
         try {
-            const result = await API.approveLeave(leaveId, 'rejected');
+            // IMPORTANT: Use 'cancelled' instead of 'rejected' for backend
+            const result = await API.approveLeave(leaveId, 'cancelled');
             console.log('Reject response:', result);
             
             if (result.success) {
-                Utils.showToast('Leave request rejected', 'ok');
+                Utils.showToast('Leave request rejected successfully', 'ok');
                 await this.render();
                 App.updateNotificationBadges();
             } else {

@@ -294,18 +294,18 @@ const App = {
 },
 
     startNotificationPolling() {
-        if (this.notificationPollingInterval) {
-            clearInterval(this.notificationPollingInterval);
-        }
-        
-        // Poll every 30 seconds for notifications
-        this.notificationPollingInterval = setInterval(() => {
-            this.updateNotificationBadges();
-        }, 30000);
-        
-        // Start admin polling if user is admin
-        this.startAdminPolling();
-    },
+    if (this.notificationPollingInterval) {
+        clearInterval(this.notificationPollingInterval);
+    }
+    
+    // Only update badge every 30 seconds - NO TOAST NOTIFICATIONS
+    this.notificationPollingInterval = setInterval(() => {
+        this.updateNotificationBadges();
+    }, 30000);
+    
+    // Start admin polling if user is admin (for pending leaves only)
+    this.startAdminPolling();
+},
 
     startAdminPolling() {
         if (this.adminPollingInterval) {
@@ -322,39 +322,30 @@ const App = {
     },
 
     async checkForNewPendingLeaves() {
-        try {
-            const result = await API.getPendingLeaves();
-            const currentPendingCount = result?.data?.length || 0;
-            
-            // Get the current displayed count from the badge
-            const badge = document.getElementById('notifBadge');
-            let displayedCount = 0;
-            if (badge && !badge.classList.contains('hidden')) {
-                displayedCount = parseInt(badge.textContent) || 0;
-            }
-            
-            // If count changed and increased, show toast notification
-            if (currentPendingCount > displayedCount) {
-                const newCount = currentPendingCount - displayedCount;
-                Utils.showToast(`📋 ${newCount} new leave request${newCount > 1 ? 's' : ''} pending approval`, 'info');
-                
-                // Update the leave requests page if it's currently open
-                if (App.currentPage === 'leaveRequests') {
-                    if (typeof LeaveRequests !== 'undefined' && LeaveRequests.render) {
-                        await LeaveRequests.render();
-                    } else {
-                        await this.renderPendingLeaves();
-                    }
-                }
-            }
-            
-            // Update badge
-            await this.updateNotificationBadges();
-            
-        } catch (error) {
-            console.error('Error checking pending leaves:', error);
+    try {
+        const result = await API.getPendingLeaves();
+        const currentPendingCount = result?.data?.length || 0;
+        
+        const badge = document.getElementById('notifBadge');
+        let displayedCount = 0;
+        if (badge && !badge.classList.contains('hidden')) {
+            displayedCount = parseInt(badge.textContent) || 0;
         }
-    },
+        if (App.currentPage === 'leaveRequests') {
+            if (typeof LeaveRequests !== 'undefined' && LeaveRequests.render) {
+                await LeaveRequests.render();
+            } else {
+                await this.renderPendingLeaves();
+            }
+        }
+        
+        // Update badge
+        await this.updateNotificationBadges();
+        
+    } catch (error) {
+        console.error('Error checking pending leaves:', error);
+    }
+},
 
     stopNotificationPolling() {
         if (this.notificationPollingInterval) {
@@ -645,7 +636,9 @@ async approveLeave(leaveId, status) {
     }
     
     try {
-        const result = await API.approveLeave(leaveId, status);
+        // Convert 'rejected' to 'cancelled' for backend
+        const backendStatus = status === 'rejected' ? 'cancelled' : status;
+        const result = await API.approveLeave(leaveId, backendStatus);
         
         if (result.success) {
             Utils.showToast(`Leave request ${status === 'approved' ? 'approved' : 'rejected'} successfully`, 'ok');
@@ -660,37 +653,28 @@ async approveLeave(leaveId, status) {
 },
 
     async updateNotificationBadges() {
-        const badge = document.getElementById('notifBadge');
-        if (!badge) return;
+    const badge = document.getElementById('notifBadge');
+    if (!badge) return;
+    
+    try {
+        // Get unread notifications count only
+        const result = await API.getUnreadCount();
+        const unreadCount = result?.unread || 0;
         
-        try {
-            if (this.currentUser?.role === 'admin') {
-                const pendingLeaves = await API.getPendingLeaves();
-                const pendingCount = pendingLeaves?.data?.length || 0;
-                
-                if (pendingCount > 0) {
-                    badge.textContent = pendingCount;
-                    badge.classList.remove('hidden');
-                    badge.classList.add('animate-pulse');
-                } else {
-                    badge.classList.add('hidden');
-                    badge.classList.remove('animate-pulse');
-                }
-            } else {
-                const result = await API.getUnreadCount();
-                if (result?.unread > 0) {
-                    badge.textContent = result.unread;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
-            }
-        } catch (error) {
-            console.error('Error updating badges:', error);
+        console.log('Unread notifications count:', unreadCount);
+        
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+            badge.classList.remove('hidden');
+        } else {
             badge.classList.add('hidden');
         }
-    },
-
+        
+    } catch (error) {
+        console.error('Error updating badges:', error);
+        badge.classList.add('hidden');
+    }
+},
     async logout() {
         this.stopNotificationPolling();
         
@@ -849,6 +833,8 @@ const MainLayout = {
         { id: 'myLeaves', icon: 'fa-calendar-check', label: 'My Leave History' },
         { id: 'leaveBalance', icon: 'fa-chart-pie', label: 'Leave Balance' },
         { id: 'colleaguesOnLeave', icon: 'fa-people-arrows', label: "Today's Leave" },
+        { divider: true, title: 'DIRECTORY' },
+        { id: 'manageEmployees', icon: 'fa-users', label: 'Employee Directory' },
         { divider: true, title: 'NOTIFICATIONS' },
         { id: 'notifications', icon: 'fa-bell', label: 'Notifications' },
         { divider: true, title: 'ACCOUNT SETTINGS' },

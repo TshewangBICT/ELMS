@@ -12,7 +12,6 @@ import (
 
 // GetMyNotifications - GET /notifications
 func GetMyNotifications(w http.ResponseWriter, r *http.Request) {
-	// Get session
 	session, _ := store.Get(r, "elms-session")
 
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
@@ -26,9 +25,19 @@ func GetMyNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notifications, err := model.GetMyNotifications(employeeID)
+	userRole, _ := session.Values["role"].(string)
+
+	var notifications []model.Notification
+	var err error
+
+	if userRole == "admin" {
+		notifications, err = model.GetAllNotifications()
+	} else {
+		notifications, err = model.GetMyNotifications(employeeID)
+	}
+
 	if err != nil {
-		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error fetching notifications: "+err.Error())
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error fetching notifications")
 		return
 	}
 
@@ -40,7 +49,6 @@ func GetMyNotifications(w http.ResponseWriter, r *http.Request) {
 
 // GetUnreadCount - GET /notifications/unread/count
 func GetUnreadCount(w http.ResponseWriter, r *http.Request) {
-	// Get session
 	session, _ := store.Get(r, "elms-session")
 
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
@@ -54,9 +62,19 @@ func GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, err := model.GetUnreadCount(employeeID)
+	userRole, _ := session.Values["role"].(string)
+
+	var count int
+	var err error
+
+	if userRole == "admin" {
+		count, err = model.GetAllUnreadCount()
+	} else {
+		count, err = model.GetUnreadCount(employeeID)
+	}
+
 	if err != nil {
-		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error fetching unread count: "+err.Error())
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error fetching unread count")
 		return
 	}
 
@@ -77,7 +95,6 @@ func MarkAsRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get session
 	session, _ := store.Get(r, "elms-session")
 
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
@@ -91,20 +108,28 @@ func MarkAsRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := model.MarkAsRead(id, employeeID); err != nil {
-		httpResp.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
+	userRole, _ := session.Values["role"].(string)
+
+	if userRole == "admin" {
+		if err := model.MarkAsReadAdmin(id); err != nil {
+			httpResp.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else {
+		if err := model.MarkAsRead(id, employeeID); err != nil {
+			httpResp.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"message": "Notification marked as read",
+		"message": "Marked as read",
 	})
 }
 
 // MarkAllAsRead - PUT /notifications/read-all
 func MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
-	// Get session
 	session, _ := store.Get(r, "elms-session")
 
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
@@ -118,14 +143,23 @@ func MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := model.MarkAllAsRead(employeeID); err != nil {
-		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error marking notifications as read: "+err.Error())
+	userRole, _ := session.Values["role"].(string)
+
+	var err error
+	if userRole == "admin" {
+		err = model.MarkAllAsReadAdmin()
+	} else {
+		err = model.MarkAllAsRead(employeeID)
+	}
+
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error marking all as read")
 		return
 	}
 
 	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"message": "All notifications marked as read",
+		"message": "All marked as read",
 	})
 }
 
@@ -140,7 +174,6 @@ func DeleteNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get session
 	session, _ := store.Get(r, "elms-session")
 
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
@@ -154,20 +187,28 @@ func DeleteNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := model.DeleteNotification(id, employeeID); err != nil {
-		httpResp.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
+	userRole, _ := session.Values["role"].(string)
+
+	if userRole == "admin" {
+		if err := model.DeleteNotificationAdmin(id); err != nil {
+			httpResp.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else {
+		if err := model.DeleteNotification(id, employeeID); err != nil {
+			httpResp.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"message": "Notification deleted successfully",
+		"message": "Deleted",
 	})
 }
 
 // DeleteAllNotifications - DELETE /notifications/all
 func DeleteAllNotifications(w http.ResponseWriter, r *http.Request) {
-	// Get session
 	session, _ := store.Get(r, "elms-session")
 
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
@@ -181,13 +222,22 @@ func DeleteAllNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := model.DeleteAllNotifications(employeeID); err != nil {
-		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error deleting notifications: "+err.Error())
+	userRole, _ := session.Values["role"].(string)
+
+	var err error
+	if userRole == "admin" {
+		err = model.DeleteAllNotificationsAdmin()
+	} else {
+		err = model.DeleteAllNotifications(employeeID)
+	}
+
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Error deleting notifications")
 		return
 	}
 
 	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"message": "All notifications deleted successfully",
+		"message": "All deleted",
 	})
 }

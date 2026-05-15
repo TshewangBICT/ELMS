@@ -6,11 +6,7 @@ const EmployeeManager = {
     allEmployees: [],
 
     async render(user) {
-        if (user.role !== 'admin') {
-            Utils.showToast('Access denied. Admin only.', 'err');
-            App.navigateTo('dashboard');
-            return;
-        }
+        const isAdmin = user.role === 'admin';
         
         document.getElementById('mainContent').innerHTML = `
             <div class="flex justify-center items-center h-64">
@@ -22,19 +18,37 @@ const EmployeeManager = {
         `;
         
         try {
-            const departmentsResult = await API.getAllDepartments();
-            const departments = departmentsResult?.data || [];
+            const departmentsResult = await API.getDepartmentNames();
+            let departments = [];
+            if (departmentsResult?.data) {
+                departments = departmentsResult.data;
+            } else if (Array.isArray(departmentsResult)) {
+                departments = departmentsResult;
+            }
             
             const employeesResult = await API.getAllEmployees();
             this.allEmployees = employeesResult?.data || [];
             
+            // Get unique departments from employees as fallback
+            const uniqueDepts = [...new Set(this.allEmployees.map(e => e.department).filter(d => d))];
+            
             const html = `
                 <div class="bg-white rounded-2xl shadow-sm p-5 animate-fade-in">
                     <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-                        <h3 class="font-bold text-lg">Employee Directory <span id="employeeCount" class="text-primary-600">(${this.allEmployees.length})</span></h3>
-                        <button onclick="EmployeeManager.openAddModal()" class="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-primary-700 transition-all shadow-sm">
-                            <i class="fas fa-user-plus"></i> Add Employee
-                        </button>
+                        <div>
+                            <h3 class="font-bold text-lg">Employee Directory <span id="employeeCount" class="text-primary-600">(${this.allEmployees.length})</span></h3>
+                            <p class="text-xs text-gray-500 mt-1">${isAdmin ? 'Full access - Manage employees' : 'View only - Employee information'}</p>
+                        </div>
+                        ${isAdmin ? `
+                            <div class="flex gap-2">
+                                <button onclick="EmployeeManager.openAddModal()" class="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-primary-700 transition-all shadow-sm flex items-center gap-2">
+                                    <i class="fas fa-user-plus"></i> Add Employee
+                                </button>
+                                <button onclick="EmployeeManager.openBulkUploadModal()" class="bg-green-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-green-700 transition-all shadow-sm flex items-center gap-2">
+                                    <i class="fas fa-upload"></i> Bulk Upload
+                                </button>
+                            </div>
+                        ` : ''}
                     </div>
                     <div class="flex flex-wrap gap-3 mb-4">
                         <div class="search-container relative flex-1 max-w-md">
@@ -45,7 +59,10 @@ const EmployeeManager = {
                         <div>
                             <select id="deptFilterSelect" class="px-4 py-2 border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-200">
                                 <option value="all">All Departments</option>
-                                ${departments.map(d => `<option value="${d.name}">${Utils.escapeHtml(d.name)}</option>`).join('')}
+                                ${departments.length > 0 ? 
+                                    departments.map(d => `<option value="${d.name || d}">${Utils.escapeHtml(d.name || d)}</option>`).join('') :
+                                    uniqueDepts.map(d => `<option value="${d}">${Utils.escapeHtml(d)}</option>`).join('')
+                                }
                             </select>
                         </div>
                         <button id="clearFiltersBtn" class="px-3 py-2 bg-gray-100 rounded-xl text-sm hover:bg-gray-200 transition-all">
@@ -58,7 +75,7 @@ const EmployeeManager = {
             
             document.getElementById('mainContent').innerHTML = html;
             this.attachEvents();
-            this.refreshTable();
+            this.refreshTable(isAdmin);
             
         } catch (error) {
             console.error('Error loading employees:', error);
@@ -73,6 +90,192 @@ const EmployeeManager = {
         }
     },
 
+    // Bulk Upload Modal - Clean UI with Upload button
+openBulkUploadModal() {
+    const modalHtml = `
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fas fa-upload text-green-600"></i>
+                    Bulk Upload Employees
+                </h3>
+                <button onclick="Utils.closeModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-5">
+                <!-- File Upload Area -->
+                <div>
+                    <label class="text-sm font-medium text-gray-700 block mb-2">Upload File</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 hover:bg-green-50 transition-all cursor-pointer"
+                         onclick="document.getElementById('bulkFileInput').click()">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-sm text-gray-500">Click to select file</p>
+                        <p class="text-xs text-gray-400 mt-1">.xlsx, .xls, or .csv</p>
+                    </div>
+                    <input type="file" id="bulkFileInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="EmployeeManager.previewFile(this)">
+                    <div id="filePreview" class="mt-2 hidden">
+                        <div class="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i id="fileIcon" class="fas fa-file-excel text-green-600"></i>
+                                <span id="fileName" class="text-sm text-gray-700 font-medium"></span>
+                                <span id="fileSize" class="text-xs text-gray-400"></span>
+                            </div>
+                            <button onclick="EmployeeManager.clearFile()" class="text-gray-400 hover:text-red-500">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Default Password Info (Static) -->
+                <div class="bg-gray-50 rounded-lg p-3">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-info-circle text-gray-400 text-sm"></i>
+                        <span class="text-xs text-gray-500">Default password for new employees: <strong class="text-gray-700">Welcome123</strong></span>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1 ml-5">You can override by adding a "Password" column in your file</p>
+                </div>
+                
+                <!-- Template Download -->
+                <div class="flex items-center justify-between pt-2">
+                    <button onclick="EmployeeManager.downloadTemplate()" 
+                            class="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1">
+                        <i class="fas fa-download"></i> Download Template
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex gap-3 mt-6 pt-4 border-t">
+                <button id="bulkUploadBtn" onclick="EmployeeManager.bulkUpload()" 
+                        class="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center gap-2">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+                <button onclick="Utils.closeModal()" 
+                        class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition font-medium">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    Utils.openModal(modalHtml);
+},
+
+previewFile(input) {
+    const file = input.files[0];
+    if (file) {
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        const validTypes = ['xlsx', 'xls', 'csv'];
+        if (!validTypes.includes(fileExt)) {
+            Utils.showToast('Please select a valid file (.xlsx, .xls, or .csv)', 'err');
+            input.value = '';
+            return;
+        }
+        
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileIcon = document.getElementById('fileIcon');
+        
+        if (fileExt === 'csv') {
+            fileIcon.className = 'fas fa-file-csv text-blue-600';
+        } else {
+            fileIcon.className = 'fas fa-file-excel text-green-600';
+        }
+        
+        fileName.textContent = file.name;
+        fileSize.textContent = `${(file.size / 1024).toFixed(2)} KB`;
+        filePreview.classList.remove('hidden');
+        
+        // Scroll to show the preview
+        filePreview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+},
+
+clearFile() {
+    const fileInput = document.getElementById('bulkFileInput');
+    const filePreview = document.getElementById('filePreview');
+    if (fileInput) fileInput.value = '';
+    if (filePreview) filePreview.classList.add('hidden');
+},
+
+downloadTemplate() {
+    const templateData = [
+        ['EmployeeID', 'FirstName', 'LastName', 'Email', 'Phone', 'Position', 'Department', 'Password'],
+        ['EMP001', 'John', 'Doe', 'john@example.com', '1234567890', 'Software Engineer', 'Information Technology', ''],
+        ['EMP002', 'Jane', 'Smith', 'jane@example.com', '0987654321', 'HR Manager', 'Human Resources', 'Welcome123'],
+        ['EMP003', 'Mike', 'Johnson', 'mike@example.com', '5551234567', 'Accountant', 'Finance', '']
+    ];
+    
+    const csvContent = templateData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'employee_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    Utils.showToast('Template downloaded!', 'ok');
+},
+
+async bulkUpload() {
+    const fileInput = document.getElementById('bulkFileInput');
+    const defaultPassword = 'Welcome123';
+    
+    if (!fileInput.files || !fileInput.files[0]) {
+        Utils.showToast('Please select a file to upload', 'warn');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('defaultPassword', defaultPassword);
+    
+    const uploadBtn = document.getElementById('bulkUploadBtn');
+    const originalText = uploadBtn?.innerHTML;
+    if (uploadBtn) {
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+        uploadBtn.disabled = true;
+    }
+    
+    try {
+        const response = await fetch('http://localhost:8080/employees/bulk-upload', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+        
+        const result = await response.json();
+        console.log('Bulk upload result:', result);
+        
+        if (result.success) {
+            Utils.closeModal();
+            Utils.showToast(result.message, 'ok');
+            this.clearFile();
+            await this.render(App.currentUser);
+        } else {
+            Utils.showToast(result.error || 'Upload failed', 'err');
+            if (uploadBtn) {
+                uploadBtn.innerHTML = originalText;
+                uploadBtn.disabled = false;
+            }
+        }
+    } catch (error) {
+        console.error('Bulk upload error:', error);
+        Utils.showToast(error.message || 'Failed to upload file', 'err');
+        if (uploadBtn) {
+            uploadBtn.innerHTML = originalText;
+            uploadBtn.disabled = false;
+        }
+    }
+},
+
     attachEvents() {
         const searchInput = document.getElementById('searchEmployeeInput');
         const deptSelect = document.getElementById('deptFilterSelect');
@@ -86,7 +289,8 @@ const EmployeeManager = {
                 if (this.searchTimeout) clearTimeout(this.searchTimeout);
                 this.searchTimeout = setTimeout(() => {
                     this.employeeSearchQuery = e.target.value;
-                    this.refreshTable();
+                    const isAdmin = App.currentUser?.role === 'admin';
+                    this.refreshTable(isAdmin);
                 }, 350);
             });
         }
@@ -96,7 +300,8 @@ const EmployeeManager = {
                 if (searchInput) searchInput.value = '';
                 this.employeeSearchQuery = '';
                 if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
-                this.refreshTable();
+                const isAdmin = App.currentUser?.role === 'admin';
+                this.refreshTable(isAdmin);
             });
         }
         
@@ -104,7 +309,8 @@ const EmployeeManager = {
             deptSelect.value = this.currentDepartmentFilter;
             deptSelect.onchange = () => {
                 this.currentDepartmentFilter = deptSelect.value;
-                this.refreshTable();
+                const isAdmin = App.currentUser?.role === 'admin';
+                this.refreshTable(isAdmin);
             };
         }
         
@@ -115,12 +321,13 @@ const EmployeeManager = {
                 if (searchInput) searchInput.value = '';
                 if (deptSelect) deptSelect.value = 'all';
                 if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
-                this.refreshTable();
+                const isAdmin = App.currentUser?.role === 'admin';
+                this.refreshTable(isAdmin);
             };
         }
     },
 
-    refreshTable() {
+    refreshTable(isAdmin = false) {
         let filteredEmps = [...this.allEmployees];
         const searchTerm = this.employeeSearchQuery.trim().toLowerCase();
         
@@ -130,6 +337,7 @@ const EmployeeManager = {
                 (e.lastName || '').toLowerCase().includes(searchTerm) ||
                 (e.email || '').toLowerCase().includes(searchTerm) ||
                 (e.employeeId || '').toLowerCase().includes(searchTerm) ||
+                (e.phone || '').toLowerCase().includes(searchTerm) ||
                 (e.position || '').toLowerCase().includes(searchTerm) ||
                 (e.department || '').toLowerCase().includes(searchTerm)
             );
@@ -144,63 +352,110 @@ const EmployeeManager = {
         
         let empRows = '';
         if (filteredEmps.length === 0) {
-            empRows = '<tr><td colspan="7" class="text-center p-8 text-gray-400"><i class="fas fa-search text-2xl mb-2 block"></i>No employees match your search criteria</td></tr>';
+            const colSpan = isAdmin ? 6 : 5;
+            empRows = `<tr><td colspan="${colSpan}" class="text-center p-8 text-gray-400"><i class="fas fa-search text-2xl mb-2 block"></i>No employees match your search criteria</td></tr>`;
         } else {
             filteredEmps.forEach(emp => {
                 const roleBadge = emp.role === 'admin' 
                     ? '<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Admin</span>' 
                     : '';
                 
-                empRows += `
-                    <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
-                        <td class="p-3">
-                            <div class="font-medium">${Utils.escapeHtml(emp.firstName || '')} ${Utils.escapeHtml(emp.lastName || '')} ${roleBadge}</div>
-                            <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
-                         </td>
-                        <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
-                        <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
-                        <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
-                        <td class="p-3">${Utils.statusBadge(emp.status)}</td>
-                        <td class="p-3 flex gap-2">
-                            <button onclick="EmployeeManager.openEditModal('${emp.employeeId}')" class="text-blue-500 hover:text-blue-700 transition" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="EmployeeManager.toggleRole('${emp.employeeId}', '${emp.role}')" class="text-purple-500 hover:text-purple-700 transition" title="${emp.role === 'admin' ? 'Remove Admin' : 'Make Admin'}">
-                                <i class="fas ${emp.role === 'admin' ? 'fa-user-minus' : 'fa-user-shield'}"></i>
-                            </button>
-                            <button onclick="EmployeeManager.toggleStatus('${emp.employeeId}')" class="text-amber-500 hover:text-amber-700 transition" title="${emp.status === 'active' ? 'Deactivate' : 'Activate'}">
-                                <i class="fas ${emp.status === 'active' ? 'fa-ban' : 'fa-check-circle'}"></i>
-                            </button>
-                            <button onclick="EmployeeManager.deleteEmployee('${emp.employeeId}')" class="text-red-500 hover:text-red-700 transition" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
+                const phoneNumber = emp.phone || '-';
+                
+                if (!isAdmin) {
+                    // Regular users: Show 5 columns (Employee, Email, Phone, Department, Position)
+                    empRows += `
+                        <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
+                            <td class="p-3">
+                                <div class="font-medium">${Utils.escapeHtml(emp.firstName || '')} ${Utils.escapeHtml(emp.lastName || '')} ${roleBadge}</div>
+                                <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
+                               </td>
+                            <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
+                            <td class="p-3 text-sm">${Utils.escapeHtml(phoneNumber)}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
+                        </tr>
+                    `;
+                } else {
+                    // Admin users: Show 7 columns (Employee, Email, Phone, Department, Position, Status, Actions)
+                    empRows += `
+                        <tr class="border-b hover:bg-gray-50 transition-colors duration-150">
+                            <td class="p-3">
+                                <div class="font-medium">${Utils.escapeHtml(emp.firstName || '')} ${Utils.escapeHtml(emp.lastName || '')} ${roleBadge}</div>
+                                <div class="text-xs text-gray-400">${emp.employeeId || ''}</div>
+                               </td>
+                            <td class="p-3 text-sm">${Utils.escapeHtml(emp.email || '')}</td>
+                            <td class="p-3 text-sm">${Utils.escapeHtml(phoneNumber)}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.department || '')}</td>
+                            <td class="p-3">${Utils.escapeHtml(emp.position || '')}</td>
+                            <td class="p-3">${Utils.statusBadge(emp.status)}</td>
+                            <td class="p-3 flex gap-2">
+                                <button onclick="EmployeeManager.openEditModal('${emp.employeeId}')" class="text-blue-500 hover:text-blue-700 transition" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="EmployeeManager.toggleRole('${emp.employeeId}', '${emp.role}')" class="text-purple-500 hover:text-purple-700 transition" title="${emp.role === 'admin' ? 'Remove Admin' : 'Make Admin'}">
+                                    <i class="fas ${emp.role === 'admin' ? 'fa-user-minus' : 'fa-user-shield'}"></i>
+                                </button>
+                                <button onclick="EmployeeManager.toggleStatus('${emp.employeeId}')" class="text-amber-500 hover:text-amber-700 transition" title="${emp.status === 'active' ? 'Deactivate' : 'Activate'}">
+                                    <i class="fas ${emp.status === 'active' ? 'fa-ban' : 'fa-check-circle'}"></i>
+                                </button>
+                                <button onclick="EmployeeManager.deleteEmployee('${emp.employeeId}')" class="text-red-500 hover:text-red-700 transition" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        <tr>
+                    `;
+                }
             });
         }
         
         const container = document.getElementById('employeeTableContainer');
         if (container) {
-            container.innerHTML = `
-                <table class="w-full text-sm">
+            let tableHeaders = '';
+            if (isAdmin) {
+                tableHeaders = `
                     <thead class="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th class="p-3 text-left">Employee</th>
                             <th class="p-3 text-left">Email</th>
+                            <th class="p-3 text-left">Phone</th>
                             <th class="p-3 text-left">Department</th>
                             <th class="p-3 text-left">Position</th>
                             <th class="p-3 text-left">Status</th>
                             <th class="p-3 text-left">Actions</th>
                         </tr>
                     </thead>
+                `;
+            } else {
+                tableHeaders = `
+                    <thead class="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                            <th class="p-3 text-left">Employee</th>
+                            <th class="p-3 text-left">Email</th>
+                            <th class="p-3 text-left">Phone</th>
+                            <th class="p-3 text-left">Department</th>
+                            <th class="p-3 text-left">Position</th>
+                        </tr>
+                    </thead>
+                `;
+            }
+            
+            container.innerHTML = `
+                <table class="w-full text-sm">
+                    ${tableHeaders}
                     <tbody>${empRows}</tbody>
                 </table>
             `;
         }
     },
 
+    // Add Employee Modal
     async openAddModal() {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         let departments = [];
         try {
             const result = await API.getAllDepartments();
@@ -223,7 +478,6 @@ const EmployeeManager = {
                     <input id="newEmail" placeholder="Email" type="email" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                     <input id="newPass" placeholder="Password" type="password" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                     <input id="newPhone" placeholder="Phone" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
-                    <input type="date" id="newDob" placeholder="Date of Birth" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                     <select id="newDept" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <option value="">Select Department</option>
                         ${deptOptions}
@@ -240,6 +494,11 @@ const EmployeeManager = {
     },
 
     async addEmployee() {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const empData = {
             employeeId: document.getElementById('newEmpId').value.trim(),
             firstName: document.getElementById('newFn').value.trim(),
@@ -247,7 +506,6 @@ const EmployeeManager = {
             email: document.getElementById('newEmail').value.trim(),
             passwordHash: document.getElementById('newPass').value,
             phone: document.getElementById('newPhone').value.trim(),
-            dob: document.getElementById('newDob').value,
             position: document.getElementById('newPos').value.trim(),
             department: document.getElementById('newDept').value,
             role: 'user'
@@ -276,6 +534,11 @@ const EmployeeManager = {
     },
 
     async openEditModal(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         try {
             const result = await API.getEmployee(employeeId);
             const emp = result?.data;
@@ -306,13 +569,11 @@ const EmployeeManager = {
                         <input id="editLn" value="${emp.lastName || ''}" placeholder="Last name" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <input id="editEmail" value="${emp.email || ''}" placeholder="Email" type="email" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <input id="editPhone" value="${emp.phone || ''}" placeholder="Phone" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
-                        <input type="date" id="editDob" value="${emp.dob || ''}" placeholder="Date of Birth" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         <select id="editDept" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                             ${deptOptions}
                         </select>
                         <input id="editPos" value="${emp.position || ''}" placeholder="Position" class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-primary-200">
                         
-                        <!-- Admin Role Toggle -->
                         <div class="border-t pt-3 mt-2">
                             <label class="flex items-center gap-3 cursor-pointer">
                                 <input type="checkbox" id="editIsAdmin" ${emp.role === 'admin' ? 'checked' : ''} class="w-4 h-4 text-primary-600 rounded focus:ring-primary-500">
@@ -337,6 +598,11 @@ const EmployeeManager = {
     },
 
     async saveEmployee(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const isAdmin = document.getElementById('editIsAdmin')?.checked || false;
         
         const empData = {
@@ -344,7 +610,6 @@ const EmployeeManager = {
             lastName: document.getElementById('editLn').value.trim(),
             email: document.getElementById('editEmail').value.trim(),
             phone: document.getElementById('editPhone').value.trim(),
-            dob: document.getElementById('editDob').value,
             position: document.getElementById('editPos').value.trim(),
             department: document.getElementById('editDept').value,
             role: isAdmin ? 'admin' : 'user'
@@ -367,8 +632,12 @@ const EmployeeManager = {
         }
     },
 
-    // New method to toggle admin role directly from table
     async toggleRole(employeeId, currentRole) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const newRole = currentRole === 'admin' ? 'user' : 'admin';
         const action = newRole === 'admin' ? 'make admin' : 'remove admin privileges';
         
@@ -386,6 +655,11 @@ const EmployeeManager = {
     },
 
     async toggleStatus(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const emp = this.allEmployees.find(e => e.employeeId === employeeId);
         if (!emp) return;
         
@@ -411,6 +685,11 @@ const EmployeeManager = {
     },
 
     async deleteEmployee(employeeId) {
+        if (App.currentUser?.role !== 'admin') {
+            Utils.showToast('Access denied. Admin only.', 'err');
+            return;
+        }
+        
         const emp = this.allEmployees.find(e => e.employeeId === employeeId);
         if (!emp) return;
         

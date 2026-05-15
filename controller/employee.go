@@ -1,14 +1,18 @@
 package controller
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"leaveapp/model"
 	httpResp "leaveapp/utils"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/xuri/excelize/v2"
 )
 
 // AddEmployee - POST /employee/add
@@ -41,6 +45,158 @@ func AddEmployee(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"message": "Employee created successfully",
 		"data":    emp,
+	})
+}
+
+// BulkUploadEmployees - POST /employees/bulk-upload
+func BulkUploadEmployees(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseMultipartForm(20 << 20)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Unable to parse form data: "+err.Error())
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Excel file is required: "+err.Error())
+		return
+	}
+	defer file.Close()
+
+	buffer := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buffer, file); err != nil {
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Unable to read uploaded file: "+err.Error())
+		return
+	}
+
+	excelFile, err := excelize.OpenReader(bytes.NewReader(buffer.Bytes()))
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Invalid Excel file: "+err.Error())
+		return
+	}
+
+	sheetName := excelFile.GetSheetName(0)
+	if sheetName == "" {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Excel workbook must contain at least one sheet")
+		return
+	}
+
+	rows, err := excelFile.GetRows(sheetName)
+	if err != nil {
+		httpResp.RespondWithError(w, http.StatusInternalServerError, "Unable to read Excel rows: "+err.Error())
+		return
+	}
+
+	if len(rows) < 2 {
+		httpResp.RespondWithError(w, http.StatusBadRequest, "Excel file must contain header row and at least one employee row")
+		return
+	}
+
+	headers := rows[0]
+	columnIndex := map[string]int{}
+	for index, column := range headers {
+		columnIndex[strings.ToLower(strings.TrimSpace(column))] = index
+	}
+
+	requiredColumns := []string{"employeeid", "firstname", "lastname", "email", "position", "department"}
+	for _, col := range requiredColumns {
+		if _, ok := columnIndex[col]; !ok {
+			httpResp.RespondWithError(w, http.StatusBadRequest, "Missing required column: "+col)
+			return
+		}
+	}
+
+	defaultPassword := r.FormValue("defaultPassword")
+	if defaultPassword == "" {
+		defaultPassword = "Welcome123"
+	}
+
+	var created []model.Employee
+	var errors []map[string]string
+	for rowIndex, row := range rows[1:] {
+		if len(row) == 0 {
+			continue
+		}
+
+		getCell := func(column string) string {
+			idx, ok := columnIndex[column]
+			if !ok || idx >= len(row) {
+				return ""
+			}
+			return strings.TrimSpace(row[idx])
+		}
+
+		empID := getCell("employeeid")
+		firstName := getCell("firstname")
+		lastName := getCell("lastname")
+		email := getCell("email")
+		phone := getCell("phone")
+		position := getCell("position")
+		department := getCell("department")
+		password := getCell("password")
+		if password == "" {
+			password = defaultPassword
+		}
+
+		if empID == "" || firstName == "" || lastName == "" || email == "" || position == "" || department == "" {
+			errors = append(errors, map[string]string{
+				"row":   fmt.Sprintf("%d", rowIndex+2),
+				"error": "Missing required employee fields",
+			})
+			continue
+		}
+
+		if _, err := model.GetEmployeeByID(empID); err == nil {
+			errors = append(errors, map[string]string{
+				"row":   fmt.Sprintf("%d", rowIndex+2),
+				"error": "Employee ID already exists",
+			})
+			continue
+		}
+
+		if existing, err := model.FindByEmail(email); err == nil && existing != nil {
+			errors = append(errors, map[string]string{
+				"row":   fmt.Sprintf("%d", rowIndex+2),
+				"error": "Email already exists",
+			})
+			continue
+		}
+
+		emp := model.Employee{
+			EmployeeID:           empID,
+			FirstName:            firstName,
+			LastName:             lastName,
+			Email:                email,
+			PasswordHash:         password,
+			Phone:                phone,
+			Position:             position,
+			Department:           department,
+			Role:                 "user",
+			Status:               "active",
+			RegistrationApproved: true,
+			CreatedAt:            time.Now(),
+			UpdatedAt:            time.Now(),
+		}
+
+		if err := emp.Create(); err != nil {
+			errors = append(errors, map[string]string{
+				"row":   fmt.Sprintf("%d", rowIndex+2),
+				"error": err.Error(),
+			})
+			continue
+		}
+
+		created = append(created, emp)
+		// FIXED: Removed the extra empty string argument
+		model.CreateNotification(emp.EmployeeID, "Welcome to ELMS! Your account has been created.", "info")
+	}
+
+	httpResp.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"success":      true,
+		"message":      fmt.Sprintf("%d employees created, %d rows had errors", len(created), len(errors)),
+		"createdCount": len(created),
+		"created":      created,
+		"errors":       errors,
 	})
 }
 

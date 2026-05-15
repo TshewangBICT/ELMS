@@ -381,3 +381,30 @@ func (e *Employee) ChangePassword() error {
 	_, err := postgres.Db.Exec(query, e.PasswordHash, time.Now(), e.EmployeeID)
 	return err
 }
+
+// GetAllAdmins - Get all admin users for notifications
+func GetAllAdmins() ([]Employee, error) {
+	query := `
+		SELECT employee_id, first_name, last_name, email, department
+		FROM employees 
+		WHERE role = 'admin' AND status = 'active'
+	`
+
+	rows, err := postgres.Db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var employees []Employee
+	for rows.Next() {
+		var emp Employee
+		err := rows.Scan(&emp.EmployeeID, &emp.FirstName, &emp.LastName, &emp.Email, &emp.Department)
+		if err != nil {
+			return nil, err
+		}
+		employees = append(employees, emp)
+	}
+
+	return employees, nil
+}
